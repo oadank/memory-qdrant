@@ -1,0 +1,7 @@
+2026-02-24 03:09:20,452 - INFO - 自动总结服务启动
+2026-02-24 03:09:22,493 - INFO - 没有新记忆需要总结
+2026-02-24 08:34:10,608 - INFO - 自动总结服务启动
+2026-02-24 08:34:12,664 - INFO - 获取到 5 条未处理 raw 记忆
+2026-02-24 08:34:16,711 - ERROR - ❌ 总结失败: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。"))
+2026-02-24 14:34:18,766 - INFO - 获取到 7 条未处理 raw 记忆
+2026-02-24 14:34:27,370 - ERROR - ❌ 总结失败: name 'shared' is not defined

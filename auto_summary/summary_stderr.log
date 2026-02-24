@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "C:\Users\oadan\openclaw_plugins\memory-qdrant\auto_summary\auto_summary.py", line 137, in <module>
+    main_loop()
+  File "C:\Users\oadan\openclaw_plugins\memory-qdrant\auto_summary\auto_summary.py", line 130, in main_loop
+    time.sleep(INTERVAL_HOURS * 3600)
+KeyboardInterrupt

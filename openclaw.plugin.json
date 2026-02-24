@@ -1,0 +1,49 @@
+{
+  "id": "memory-qdrant",
+  "name": "Memory Qdrant Plugin",
+  "version": "2.0.1",
+  "kind": "lifecycle",
+  "main": "index.js",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": { "type": "string", "default": "http://localhost:6333" },
+      "collection": { "type": "string", "default": "agent_memory" },
+      "ollamaUrl": { "type": "string", "default": "http://localhost:11434" },
+      "sharedUserId": { "type": "string", "default": "shared"  },
+      "embeddingModel": { "type": "string", "default": "bge-m3" },
+      "topK": { "type": "integer", "default": 3 },
+      "dedupeThreshold": { "type": "number", "default": 0.85 },
+      "userId": { "type": "string", "default": "claw" },
+      "filterRules": {
+        "type": "object",
+        "properties": {
+          "minLength": { "type": "integer", "default": 10 },
+          "userBlacklist": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": ["截屏", "截图", "重启", "打开浏览器", "/new", "/reset", "你好", "测试", "继续", "你挂了"]
+          },
+          "assistantBlacklistPatterns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": ["^很高兴见到你", "有什么可以帮你的吗", "你好，我是", "我是你的AI助理", "新会话", "会话已", "新会话启动", "IDENTITY\\.md 现在是空的", "让我自我介绍一下", "I'm online","HEARTBEAT_OK", "I'm online and ready to go", "What do you want", "想干点啥", "干啥"]
+          },
+          "deleteKeywords": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": ["删除最后一条记忆", "删除刚才那句", "删除刚才的问题", "删除上一条", "删除关于"]
+          },
+          "summaryKeywords": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": ["总结记忆", "总结一下", "帮我总结"]
+          }
+        }
+      },
+      "fallbackToRaw": { "type": "boolean", "default": true },
+      "summaryModel": { "type": "string", "default": "qwen2.5:14b-instruct" },
+      "summaryMaxRaw": { "type": "integer", "default": 100 }
+    }
+  }
+}
