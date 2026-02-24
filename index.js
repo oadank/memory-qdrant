@@ -14,7 +14,7 @@ export default {
     // ---------- 默认规则（当配置缺失时使用）----------
     const defaultFilterRules = {
       minLength: 10,
-      userBlacklist: ['截屏', '截图', '重启', '打开浏览器', '/new', '/reset', '你好', '测试', '继续', '你挂了？'],
+      userBlacklist: ['截屏', '截图', '重启', '打开浏览器', '/new', '/reset', '你好', '测试', '继续', '你挂了？', 'HEARTBEAT.md', 'Read HEARTBEAT.md', 'If nothing needs attention'],
       assistantBlacklistPatterns: [
         '^很高兴见到你',
         '有什么可以帮你的吗',
@@ -29,7 +29,9 @@ export default {
         "I'm online and ready to go",
         'What do you want',
         '想干点啥',
-        '干啥'
+        '干啥',
+        'HEARTBEAT_OK',
+        '^HEARTBEAT_OK$',
       ],
       deleteKeywords: ['删除最后一条记忆', '删除刚才那句', '删除刚才的问题', '删除上一条', '删除关于'],
       summaryKeywords: ['总结记忆', '总结一下', '帮我总结']

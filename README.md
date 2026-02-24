@@ -1,11 +1,4 @@
-以下是根据您的要求整合后的全新 `README.md` 内容。它保留了原文档的丰富特性说明，同时加入了清晰的目录结构、依赖说明、一键安装与管理记忆的操作指南，并更新了仓库地址和脚本名称。您可以直接复制并替换现有文件。
-
-```markdown
 # 🧠 Memory Qdrant Plugin for OpenClaw
-
-[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](https://github.com/oadank/memory-qdrant)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-2026.2+-orange.svg)](https://github.com/openclaw)
 
 一个基于 **Qdrant** 向量数据库的 OpenClaw 记忆插件，自动为智能体注入长期记忆，支持对话存储、语义检索、记忆删除与总结。  
 🧩 本插件由社区开发，完美适配 OpenClaw 生命周期钩子，让智能体拥有“记性”。
@@ -22,8 +15,7 @@ memory-qdrant/
 │   └── qdrant.exe          # Qdrant 可执行文件（已内置）
 ├── nssm/                   # NSSM (Non-Sucking Service Manager)
 │   └── nssm.exe            # 用于将 Qdrant 注册为 Windows 服务
-├── scripts/                # 管理脚本
-│   └── 管理Qdrant记忆.ps1   # 查看、按序号删除记忆的交互脚本
+├── 管理Qdrant记忆.ps1      # 查看、按序号删除记忆的交互脚本
 ├── auto_summary/           # 自动总结技能模块（Python）
 ├── tools/                  # 其他辅助工具（预留）
 ├── install.ps1             # 一键安装脚本（以管理员身份运行）
@@ -40,11 +32,11 @@ memory-qdrant/
 
 | 组件 | 说明 |
 |------|------|
-| **Qdrant** | 向量数据库，所有记忆以向量形式存储。`qdrant.exe` 已内置在 `qdrant/` 文件夹中，无需用户额外下载。 |
-| **NSSM** | Windows 服务管理器，用于将 Qdrant 注册为后台服务。`nssm.exe` 已内置在 `nssm/` 文件夹中。 |
-| **Node.js** | 插件核心逻辑由 Node.js 实现，依赖已打包在 `node_modules/` 中（约 2MB），无需手动安装。 |
-| **Python** | 自动总结功能需要 Python 环境，安装脚本会自动创建虚拟环境并安装依赖（`auto_summary/requirements.txt`）。 |
-
+| **Qdrant** | 向量数据库，所有记忆以向量形式存储。`qdrant.exe` 已内置在 `qdrant/` 文件夹中，无需额外下载。 |
+| **NSSM** | Windows 服务管理器，用于将 Qdrant 注册为后台服务。`nssm.exe` 已内置在 `nssm/` 文件夹中，无需额外下载。 |
+| **Node.js** | 插件核心逻辑由 Node.js 实现。**需自行安装 Node.js 环境**（推荐 v18 或更高版本），但项目依赖的 `node_modules` 已打包在仓库中（约 2MB），无需运行 `npm install`。 |
+| **Python** | 自动总结功能需要 Python 环境，（需要系统已安装，并写入环境变量即可）。 |
+| **Ollama** | 用于生成向量嵌入和文本总结。需提前安装 Ollama 并拉取以下模型：<br>- 向量模型：`bge-m3:latest`（或其它兼容模型）<br>- 总结模型：`qwen2.5:14b-instruct`（或其它模型，可在配置中修改） |
 ---
 
 ## 🚀 安装与使用
@@ -64,8 +56,7 @@ cd memory-qdrant
 - 创建 Qdrant 数据目录 `qdrant/data` 和日志目录 `qdrant/logs`
 - 使用 NSSM 将 Qdrant 注册为 Windows 服务 `QdrantMemory` 并启动
 - 验证服务运行状态（默认端口 `6333`）
-- 安装 Python 自动总结依赖（创建虚拟环境 `auto_summary/venv`）
-- 在桌面创建快捷方式 `Qdrant记忆管理.lnk`，方便随时调用管理脚本
+- 在桌面创建快捷方式 `Qdrant记忆管理.lnk`，方便随时调用管理记忆
 
 > ⚠️ **注意**：如果之前安装过旧版本，脚本会自动停止并删除旧服务，请确保已备份重要数据。
 
@@ -74,7 +65,7 @@ cd memory-qdrant
 - 双击桌面上的 **`Qdrant记忆管理`** 快捷方式
 - 或在 PowerShell 中直接运行：
   ```powershell
-  .\scripts\管理Qdrant记忆.ps1
+  .\管理Qdrant记忆.ps1
   ```
 
 管理脚本提供交互式界面：
@@ -96,6 +87,8 @@ cd memory-qdrant
 ## ✨ 功能特性
 
 - ✅ **自动记忆存储**：用户消息与助手回复自动存入 Qdrant，支持 `raw` 和 `insight` 两种记忆类型。
+   - `raw`：原始对话记录，包括用户输入和助手回复，用于短期记忆和即时检索。
+   - `insight`：由总结功能生成的浓缩记忆，代表长期、高层次的语义信息。
 - 🔍 **语义检索**：基于用户当前输入，检索最相关的历史记忆，并作为上下文注入智能体。
 - 🎯 **检索优先级**：先搜 `insight`（总结记忆），再搜 `assistant` 原始消息，最后搜 `user` 消息，确保答案质量。
 - 🧹 **记忆管理**：
@@ -128,6 +121,7 @@ cd memory-qdrant
 | `filterRules` | object | 见下文 | 过滤规则 |
 
 ### `filterRules` 对象
+  - filterRules 是过滤规则，用于控制哪些对话内容不被存储。
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
@@ -142,7 +136,7 @@ cd memory-qdrant
 ## 📖 使用方法
 
 ### 基本流程
-1. 启动 OpenClaw 后，插件自动工作。
+1. 正确配置到 OpenClaw 并启用后，插件自动工作，并在后台打印相关日志。
 2. 每次对话，用户消息和助手回复都会被存储（除非被过滤规则拦截）。
 3. 下次提问时，插件会自动检索相关记忆并注入上下文。
 

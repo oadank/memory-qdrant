@@ -22,12 +22,12 @@
           "userBlacklist": {
             "type": "array",
             "items": { "type": "string" },
-            "default": ["截屏", "截图", "重启", "打开浏览器", "/new", "/reset", "你好", "测试", "继续", "你挂了"]
+            "default": ["截屏", "截图", "重启", "打开浏览器", "/new", "/reset", "你好", "测试", "继续", "你挂了", "HEARTBEAT.md","Read HEARTBEAT.md","If nothing needs attention"]
           },
           "assistantBlacklistPatterns": {
             "type": "array",
             "items": { "type": "string" },
-            "default": ["^很高兴见到你", "有什么可以帮你的吗", "你好，我是", "我是你的AI助理", "新会话", "会话已", "新会话启动", "IDENTITY\\.md 现在是空的", "让我自我介绍一下", "I'm online","HEARTBEAT_OK", "I'm online and ready to go", "What do you want", "想干点啥", "干啥"]
+            "default": ["^很高兴见到你", "有什么可以帮你的吗", "你好，我是", "我是你的AI助理", "新会话", "会话已", "新会话启动", "IDENTITY\\.md 现在是空的", "让我自我介绍一下", "I'm online","HEARTBEAT_OK", "I'm online and ready to go", "What do you want", "想干点啥", "干啥", "HEARTBEAT_OK","^HEARTBEAT_OK$"]
           },
           "deleteKeywords": {
             "type": "array",
