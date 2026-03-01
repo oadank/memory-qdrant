@@ -1,5 +1,5 @@
 // filter-service.js - 模型过滤服务
-// 使用本地 LLM 判断消息是否值得存储
+// 使用本地 LLM 判断消息是否值得存储，并可提炼核心价值
 
 import fetch from 'node-fetch';
 
@@ -7,25 +7,33 @@ const FILTER_MODEL = 'qwen2.5:14b-instruct';
 const OLLAMA_URL = 'http://localhost:11434';
 
 /**
- * 使用模型判断消息是否应该存储
+ * 使用模型判断消息是否应该存储，并提炼核心价值
  * @param {string} text - 消息内容
  * @param {string} role - 角色 (user/assistant)
- * @returns {Promise<{should_store: boolean, reason: string, confidence: number}>}
+ * @param {boolean} enableRefine - 是否启用提炼（默认 true）
+ * @returns {Promise<{should_store: boolean, refined_text: string|null, reason: string, confidence: number}>}
  */
-export async function judgeWithLLM(text, role) {
-    const prompt = `你是一个记忆存储过滤器。判断以下对话是否需要长期记忆存储。
+export async function judgeWithLLM(text, role, enableRefine = true) {
+    const prompt = `你是一个记忆存储优化器。请完成以下任务：
 
+**任务 1：判断是否值得存储**
 存储标准：
-- ✅ 应该存储：包含用户个人信息、偏好、事实；包含重要的对话内容、问题、决策；包含用户的明确指令、规则、约束
-- ❌ 不应存储：问候语、告别语、客套话；无意义的测试消息；重复或无实质内容的对话；AI 的例行问候或自我介绍
+- ✅ 应该存储：包含个人信息/偏好/事实；重要决策/问题/解决方案；明确指令/规则/约束；有价值的经验总结
+- ❌ 不应存储：问候语/客套话；无意义测试消息；例行问候；纯过程性汇报（无实质结论）
 
-对话内容：
+**任务 2：提炼核心价值**（如果值得存储）
+- 去除过程性描述、客套话、冗余信息
+- 保留核心知识、经验、决策、事实
+- 提炼后控制在 100 字以内
+
+**对话内容：**
 角色：${role}
 内容：${text}
 
-请只输出 JSON 格式：
+**输出 JSON 格式：**
 {
   "should_store": true 或 false,
+  "refined_text": "提炼后的内容（如果不值得存储则为 null）",
   "reason": "简短理由（20 字以内）",
   "confidence": 0.0-1.0 之间的置信度
 }`;
@@ -54,6 +62,7 @@ export async function judgeWithLLM(text, role) {
             const parsed = JSON.parse(content);
             return {
                 should_store: parsed.should_store === true,
+                refined_text: parsed.refined_text || null,
                 reason: parsed.reason || '无理由',
                 confidence: parsed.confidence || 0.5,
                 model: FILTER_MODEL
@@ -64,6 +73,7 @@ export async function judgeWithLLM(text, role) {
                                content.includes('"should_store":true');
             return {
                 should_store: shouldStore,
+                refined_text: null,
                 reason: 'JSON 解析失败，从文本推断',
                 confidence: 0.3,
                 model: FILTER_MODEL
@@ -73,6 +83,7 @@ export async function judgeWithLLM(text, role) {
         console.error(`[filter-service] 模型判断失败：${error.message}`);
         return {
             should_store: null,
+            refined_text: null,
             reason: `错误：${error.message}`,
             confidence: 0,
             model: FILTER_MODEL,
@@ -201,12 +212,15 @@ export class FilterQueue {
                 continue;
             }
 
-            // 模型判断
-            const result = await judgeWithLLM(text, role);
+            // 模型判断 + 提炼核心价值
+            const result = await judgeWithLLM(text, role, true);
 
             if (result.should_store === true) {
-                // 应该存储 - 触发写入
-                this._onShouldStore(msg, result);
+                // 应该存储 - 触发写入（优先使用提炼后的文本）
+                const storeMsg = result.refined_text
+                    ? { ...msg, content: result.refined_text, original_text: text }
+                    : msg;
+                this._onShouldStore(storeMsg, result);
                 this.stats.stored++;
             } else if (result.should_store === false) {
                 this.stats.filtered++;

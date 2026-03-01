@@ -534,11 +534,15 @@ async function existsHash(cfg, client, hash) {
 }
 
 /**
- * raw 写入：每条 message 一条 point
+ * 添加消息到 Qdrant
+ * - payload.messages: 消息数组（支持提炼后的文本）
+ * - 如果消息包含 original_text 字段，则使用提炼后的文本，original_text 为原文
  * - 写 role（user/assistant）
  * - text 先 clean：去 user:/assistant:、去 [Fri ...]、去日志块
  * - dedup：hash(role + text) 已存在则跳过
  */
+
+
 export async function addMessage(cfg, payload) {
   try {
     const client = makeQdrantClient(cfg);
@@ -566,19 +570,27 @@ export async function addMessage(cfg, payload) {
 
       const vector = await embedText(cfg, cleaned);
 
+      // 构建 payload，支持提炼后的文本
+      const pointPayload = {
+        role: m.role,
+        text: cleaned,
+        timestamp: Date.now(),
+        source_type: m.original_text ? "refined" : "raw",  // 提炼后的文本标记为 refined
+        mem_type: "fact",
+        tags: await extractKeywords(cfg, cleaned),
+        hash,
+        processed: false
+      };
+
+      // 如果有原文，保存原文字段
+      if (m.original_text) {
+        pointPayload.original_text = m.original_text;
+      }
+
       points.push({
         id: uuidv4(),
         vector,
-        payload: {
-          role: m.role,
-          text: cleaned,
-          timestamp: Date.now(),
-          source_type: "raw",
-          mem_type: "fact",
-          tags: await extractKeywords(cfg, cleaned),
-          hash,
-          processed: false          // 👈 新增字段，表示未总结
-        }
+        payload: pointPayload
       });
     }
 

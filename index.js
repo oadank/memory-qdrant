@@ -124,6 +124,16 @@ export default {
       const cfg = buildConfig(api.pluginConfig);
       if (!cfg.addEnabled) return;
 
+      // 如果有提炼后的文本，记录日志
+      if (cfg.debug) {
+        if (msg.original_text) {
+          console.log(`[memory-qdrant] 存储提炼记忆：${msg.content.substring(0, 50)}...`);
+          console.log(`[memory-qdrant] 原文：${msg.original_text.substring(0, 100)}...`);
+        } else {
+          console.log(`[memory-qdrant] 存储原始记忆：${msg.content.substring(0, 50)}...`);
+        }
+      }
+
       // 直接写入单条消息
       addMessage(cfg, { messages: [msg] }).then(r => {
         if (cfg.debug) {
