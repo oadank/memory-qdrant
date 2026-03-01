@@ -1,4 +1,1 @@
-qdrant/storage/
-qdrant/snapshots/
-qdrant/.qdrant-initialized
-auto_summary/auto_summary.log
+node_modules/

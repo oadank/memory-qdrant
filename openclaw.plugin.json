@@ -1,49 +1,58 @@
 {
   "id": "memory-qdrant",
-  "name": "Memory Qdrant Plugin",
-  "version": "2.0.1",
-  "kind": "lifecycle",
+  "name": "memory-qdrant",
+  "version": "0.4.0",
   "main": "index.js",
+  "type": "module",
+  "kind": "lifecycle",
   "configSchema": {
     "type": "object",
     "properties": {
-      "qdrantUrl": { "type": "string", "default": "http://localhost:6333" },
+      "recallEnabled": { "type": "boolean", "default": true },
+      "addEnabled": { "type": "boolean", "default": true },
+      "debug": { "type": "boolean", "default": true },
+
+      "qdrantUrl": { "type": "string", "default": "http://127.0.0.1:6333" },
       "collection": { "type": "string", "default": "agent_memory" },
-      "ollamaUrl": { "type": "string", "default": "http://localhost:11434" },
-      "sharedUserId": { "type": "string", "default": "shared"  },
-      "embeddingModel": { "type": "string", "default": "bge-m3" },
-      "topK": { "type": "integer", "default": 3 },
-      "dedupeThreshold": { "type": "number", "default": 0.85 },
-      "userId": { "type": "string", "default": "claw" },
-      "filterRules": {
-        "type": "object",
-        "properties": {
-          "minLength": { "type": "integer", "default": 10 },
-          "userBlacklist": {
-            "type": "array",
-            "items": { "type": "string" },
-            "default": ["截屏", "截图", "重启", "打开浏览器", "/new", "/reset", "你好", "测试", "继续", "你挂了", "HEARTBEAT.md","Read HEARTBEAT.md","If nothing needs attention"]
-          },
-          "assistantBlacklistPatterns": {
-            "type": "array",
-            "items": { "type": "string" },
-            "default": ["^很高兴见到你", "有什么可以帮你的吗", "你好，我是", "我是你的AI助理", "新会话", "会话已", "新会话启动", "IDENTITY\\.md 现在是空的", "让我自我介绍一下", "I'm online","HEARTBEAT_OK", "I'm online and ready to go", "What do you want", "想干点啥", "干啥", "HEARTBEAT_OK","^HEARTBEAT_OK$"]
-          },
-          "deleteKeywords": {
-            "type": "array",
-            "items": { "type": "string" },
-            "default": ["删除最后一条记忆", "删除刚才那句", "删除刚才的问题", "删除上一条", "删除关于"]
-          },
-          "summaryKeywords": {
-            "type": "array",
-            "items": { "type": "string" },
-            "default": ["总结记忆", "总结一下", "帮我总结"]
-          }
-        }
-      },
-      "fallbackToRaw": { "type": "boolean", "default": true },
-      "summaryModel": { "type": "string", "default": "qwen2.5:14b-instruct" },
-      "summaryMaxRaw": { "type": "integer", "default": 100 }
+
+      "embeddingProvider": { "type": "string", "default": "ollama" },
+      "ollamaUrl": { "type": "string", "default": "http://127.0.0.1:11434" },
+      "embeddingModel": { "type": "string", "default": "nomic-embed-text" },
+
+      "memoryLimitNumber": { "type": "number", "default": 3 },
+      "denseLimit": { "type": "number", "default": 60 },
+
+      "sparseEnabled": { "type": "boolean", "default": true },
+      "sparseCandidateLimit": { "type": "number", "default": 240 },
+      "sparseLimit": { "type": "number", "default": 80 },
+
+      "maxKeywords": { "type": "number", "default": 16 },
+      "kwMinHits": { "type": "number", "default": 2 },
+      "kwMinHitsShort": { "type": "number", "default": 1 },
+
+      "wDense": { "type": "number", "default": 1.0 },
+      "wKw": { "type": "number", "default": 0.25 },
+      "wRecency": { "type": "number", "default": 0.15 },
+      "wInsight": { "type": "number", "default": 0.10 },
+      "wRole": { "type": "number", "default": 0.05 },
+      "recencyHalfLifeHours": { "type": "number", "default": 72 },
+
+      "cleanMaxLen": { "type": "number", "default": 600 },
+      "minCaptureChars": { "type": "number", "default": 12 },
+
+      "throttleMs": { "type": "number", "default": 800 },
+      "captureStrategy": { "type": "string", "default": "last_turn" },
+
+      "includeAssistant": { "type": "boolean", "default": true },
+      "maxMessageChars": { "type": "number", "default": 2000 },
+
+      "extraStopWords": { "type": "array", "items": { "type": "string" }, "default": [] },
+      "badQueryTokens": { "type": "array", "items": { "type": "string" }, "default": [] },
+
+      "dedupEnabled": { "type": "boolean", "default": true },
+      "dedupLookbackLimit": { "type": "number", "default": 1 },
+
+      "tags": { "type": "array", "items": { "type": "string" }, "default": [] }
     }
   }
 }
