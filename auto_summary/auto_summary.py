@@ -130,32 +130,46 @@ def get_unprocessed_raw():
         return []
 
 def summarize_cluster(texts, point_ids):
-    prompt = f"""你是一位专业的用户行为分析师。请根据以下用户的一组对话记录（属于同一话题），完成两项任务：
-1. 写一份详细的用户画像分析报告（Insight）。
-2. 对这份报告进行分类和评分，输出 JSON 格式的元数据。
+    """
+    对簇内记忆进行多主题识别和分别总结。
+    每个主题输出 1 条独立的 insight 记录。
+    """
+    prompt = f"""你是一位专业的用户行为分析师。请分析以下用户对话记录，完成以下任务：
 
-**要求**：
-- 报告内容要详细，包含：核心关注话题、长期稳定的偏好或价值观、临时的状态或情绪变化、行为模式等。每一部分都要有具体对话作为支撑。
-- JSON 元数据必须包含以下字段：
-  - "type": 报告类型，可选 "preference"（偏好）、"fact"（事实）、"rule"（规则）、"skill"（技能）、"persona_trait"（人格特质）、"experience"（经验）、"error"（错误教训）。
-  - "confidence": 置信度，0-1 之间的浮点数。
-  - "importance": 重要性，0-1 之间的浮点数。
-  - "tags": 字符串数组，相关标签（例如 ["coding", "debugging"]）。
-- 输出格式必须是一个包含 "report" 和 "metadata" 的 JSON 对象，例如：
-  {{
-    "report": "用户对...",
-    "metadata": {{
-      "type": "preference",
-      "confidence": 0.9,
-      "importance": 0.8,
-      "tags": ["preference", "interaction"]
-    }}
-  }}
+**任务 1：主题识别**
+分析这些对话记录，识别出几个不同的话题/主题。
 
-对话记录：
+**任务 2：分别总结**
+对每个主题，总结为 1 条精炼的 insight（1-2 句话，50-150 字）。
+
+**任务 3：分类标注**
+为每条 insight 指定类型：
+- preference: 用户偏好、喜好
+- fact: 客观事实、个人信息
+- rule: 用户指定的规则、约束
+- skill: 技能、能力
+- persona_trait: 人格特质、性格
+- experience: 经历、经验
+- error: 错误教训、踩坑记录
+
+**对话记录：**
 {chr(10).join(texts)}
 
-请输出 JSON：
+**输出格式（必须为标准 JSON）：**
+{{
+  "topics": [
+    {{
+      "topic_name": "主题简短描述（如'编程偏好'、'音乐喜好'）",
+      "insight": "1-2 句话总结，精炼表达",
+      "mem_type": "preference|fact|rule|skill|persona_trait|experience|error",
+      "confidence": 0.85,
+      "importance": 0.75,
+      "tags": ["标签 1", "标签 2"]
+    }}
+  ]
+}}
+
+请只输出 JSON，不要任何其他文字：
 """
     try:
         summary_res = requests.post(
@@ -174,87 +188,152 @@ def summarize_cluster(texts, point_ids):
 
         try:
             data = json.loads(content)
-            insight_text = data["report"]
-            metadata = data["metadata"]
-            mem_type = metadata.get("type", "preference")
-            confidence = metadata.get("confidence", 0.8)
-            importance = metadata.get("importance", 0.7)
-            # 不再使用 metadata 中的 tags，而是从 insight_text 重新提取
-        except (json.JSONDecodeError, KeyError) as e:
-            logging.error(f"解析 LLM 返回的 JSON 失败: {e}，原始内容: {content}")
-            insight_text = content
-            mem_type = "preference"
-            confidence = 0.8
-            importance = 0.7
+            topics = data.get("topics", [])
 
-        # 从 insight 文本中提取关键词作为 tags
-        insight_tags = extract_keywords_from_text(insight_text)
-
-        # 为 insight 生成向量
-        embed_res = requests.post(
-            f"{OLLAMA_URL}/api/embeddings",
-            json={"model": "bge-m3:latest", "prompt": insight_text},
-            timeout=30
-        )
-        embed_res.raise_for_status()
-        vector = embed_res.json()["embedding"]
-
-        # 构建 payload
-        insight_payload = {
-            "text": insight_text,
-            "timestamp": int(time.time() * 1000),
-            "userId": SHARED_USER_ID,
-            "conversationId": "auto_summary",
-            "role": "assistant",
-            "type": mem_type,
-            "source": "auto_summary",
-            "confidence": confidence,
-            "importance": importance,
-            "tags": insight_tags,                     # 存储从 insight 文本提取的关键词
-            "source_episode_ids": point_ids,
-            "expires_at": int(time.time() * 1000) + 30 * 24 * 3600 * 1000
-        }
-
-        # 插入 insight（使用无名向量）
-        qdrant_response = requests.put(
-            f"{QDRANT_URL}/collections/{COLLECTION}/points?wait=true",
-            json={
-                "points": [{
-                    "id": str(uuid.uuid4()),
-                    "vector": vector,
-                    "payload": insight_payload
+            if not topics:
+                # 兼容旧格式：如果没有 topics 字段，尝试将整个 content 作为单条 insight
+                logging.info(f"LLM 未返回 topics 字段，使用单条总结模式")
+                topics = [{
+                    "topic_name": "综合总结",
+                    "insight": data.get("report", content),
+                    "mem_type": data.get("metadata", {}).get("type", "preference"),
+                    "confidence": data.get("metadata", {}).get("confidence", 0.8),
+                    "importance": data.get("metadata", {}).get("importance", 0.7),
+                    "tags": []
                 }]
-            },
-            timeout=30
-        )
-        qdrant_response.raise_for_status()
 
-        # 更新原始记忆的 processed 字段
-        for pid in point_ids:
-            update_response = requests.post(
-                f"{QDRANT_URL}/collections/{COLLECTION}/points/payload",
-                json={"points": [{"id": pid, "payload": {"processed": True}}]},
+            logging.info(f"识别到 {len(topics)} 个主题")
+
+            # 为每个主题生成一条 insight 记录
+            for topic_idx, topic in enumerate(topics):
+                insight_text = topic.get("insight", "")
+                if not insight_text:
+                    continue
+
+                mem_type = topic.get("mem_type", "preference")
+                confidence = topic.get("confidence", 0.8)
+                importance = topic.get("importance", 0.7)
+                tags = topic.get("tags", [])
+
+                # 为 insight 生成向量
+                embed_res = requests.post(
+                    f"{OLLAMA_URL}/api/embeddings",
+                    json={"model": "bge-m3:latest", "prompt": insight_text},
+                    timeout=30
+                )
+                embed_res.raise_for_status()
+                vector = embed_res.json()["embedding"]
+
+                # 构建 payload
+                insight_payload = {
+                    "text": insight_text,
+                    "timestamp": int(time.time() * 1000),
+                    "userId": SHARED_USER_ID,
+                    "conversationId": f"auto_summary_topic_{topic_idx}",
+                    "role": "assistant",
+                    "type": mem_type,
+                    "source_type": "insight",
+                    "source": "auto_summary",
+                    "confidence": confidence,
+                    "importance": importance,
+                    "tags": tags,
+                    "source_episode_ids": point_ids,
+                    "expires_at": int(time.time() * 1000) + 30 * 24 * 3600 * 1000
+                }
+
+                # 插入 insight（使用无名向量）
+                qdrant_response = requests.put(
+                    f"{QDRANT_URL}/collections/{COLLECTION}/points?wait=true",
+                    json={
+                        "points": [{
+                            "id": str(uuid.uuid4()),
+                            "vector": vector,
+                            "payload": insight_payload
+                        }]
+                    },
+                    timeout=30
+                )
+                qdrant_response.raise_for_status()
+
+                logging.info(f"✅ 主题 '{topic.get('topic_name', 'unknown')}' 总结完成，类型 {mem_type}")
+
+            # 更新原始记忆的 processed 字段
+            for pid in point_ids:
+                update_response = requests.post(
+                    f"{QDRANT_URL}/collections/{COLLECTION}/points/payload",
+                    json={"points": [{"id": pid, "payload": {"processed": True}}]},
+                    timeout=30
+                )
+                update_response.raise_for_status()
+
+            logging.info(f"✅ 簇总结完成，共生成 {len(topics)} 条 insight，处理 {len(point_ids)} 条 raw 记忆")
+            return True
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logging.error(f"解析 LLM 返回的 JSON 失败：{e}，原始内容：{content}")
+            # 降级处理：将整个内容作为单条 insight
+            fallback_payload = {
+                "text": content,
+                "timestamp": int(time.time() * 1000),
+                "userId": SHARED_USER_ID,
+                "conversationId": "auto_summary_fallback",
+                "role": "assistant",
+                "type": "inference",
+                "source_type": "insight",
+                "source": "auto_summary",
+                "confidence": 0.5,
+                "importance": 0.5,
+                "tags": extract_keywords_from_text(content),
+                "source_episode_ids": point_ids,
+                "expires_at": int(time.time() * 1000) + 30 * 24 * 3600 * 1000
+            }
+            embed_res = requests.post(
+                f"{OLLAMA_URL}/api/embeddings",
+                json={"model": "bge-m3:latest", "prompt": content},
                 timeout=30
             )
-            update_response.raise_for_status()
+            embed_res.raise_for_status()
+            vector = embed_res.json()["embedding"]
 
-        logging.info(f"✅ 簇总结完成，类型 {mem_type}，置信度 {confidence:.2f}，重要性 {importance:.2f}，处理 {len(point_ids)} 条 raw 记忆")
-        return True
+            qdrant_response = requests.put(
+                f"{QDRANT_URL}/collections/{COLLECTION}/points?wait=true",
+                json={
+                    "points": [{
+                        "id": str(uuid.uuid4()),
+                        "vector": vector,
+                        "payload": fallback_payload
+                    }]
+                },
+                timeout=30
+            )
+            qdrant_response.raise_for_status()
+
+            for pid in point_ids:
+                update_response = requests.post(
+                    f"{QDRANT_URL}/collections/{COLLECTION}/points/payload",
+                    json={"points": [{"id": pid, "payload": {"processed": True}}]},
+                    timeout=30
+                )
+                update_response.raise_for_status()
+
+            logging.info(f"✅ 降级处理完成，生成 1 条 fallback insight")
+            return True
+
     except requests.exceptions.ConnectionError as e:
         if "ollama" in str(e).lower():
-            logging.error(f"❌ Ollama 连接失败: {e}")
+            logging.error(f"❌ Ollama 连接失败：{e}")
         else:
-            logging.error(f"❌ Qdrant 连接失败: {e}")
+            logging.error(f"❌ Qdrant 连接失败：{e}")
     except requests.exceptions.Timeout as e:
-        logging.error(f"❌ 请求超时: {e}")
+        logging.error(f"❌ 请求超时：{e}")
     except requests.exceptions.RequestException as e:
-        logging.error(f"❌ HTTP 请求失败: {e}")
+        logging.error(f"❌ HTTP 请求失败：{e}")
     except json.JSONDecodeError as e:
-        logging.error(f"❌ JSON 解析失败: {e}")
+        logging.error(f"❌ JSON 解析失败：{e}")
     except KeyError as e:
-        logging.error(f"❌ 数据字段缺失: {e}")
+        logging.error(f"❌ 数据字段缺失：{e}")
     except Exception as e:
-        logging.error(f"❌ 簇总结失败: {e}")
+        logging.error(f"❌ 簇总结失败：{e}")
     return False
 
 def cluster_and_summarize(raw_points):

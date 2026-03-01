@@ -23,30 +23,24 @@ export function extractText(content) {
   return "";
 }
 
-// 中英文类型映射
+// 中英文类型映射 - 简化为 2 种显示类型
 const typeMap = {
+  // 原始对话类型 -> [记忆]
   fact: "记忆",
-  preference: "偏好",
-  rule: "规则",
-  skill: "技能",
-  personality: "性格",
-  experience: "经验",
-  error: "错误",
-  inference: "推测总结",
+  user: "记忆",
+  assistant: "记忆",
+  raw: "记忆",
+  // 精华类型 -> [精华]
+  preference: "精华",
+  rule: "精华",
+  skill: "精华",
+  personality: "精华",
+  experience: "精华",
+  error: "精华",
+  inference: "精华",
   insight: "精华",
-  "assistant观点": "助手观点"
-};
-
-// 来源类型映射
-const sourceMap = {
-  raw: "原始",
-  insight: "洞察",
-};
-
-// 角色映射
-const roleMap = {
-  user: "用户",
-  assistant: "助手",
+  "assistant 观点": "精华",
+  manual: "精华"
 };
 
 /**
@@ -65,14 +59,7 @@ export function formatPromptBlock(result, opts = {}) {
   lines.push("");
   lines.push("记忆类型说明：");
   lines.push("- `[记忆]`：用户或者助手的聊天记录原文");
-  lines.push("- `[偏好]`：用户偏好（AI 推断或总结，非用户直接陈述）");
-  lines.push("- `[规则]`：行为规则或约束（AI 推断或总结，非用户直接陈述）");
-  lines.push("- `[技能]`：技能或方法（AI 推断或总结，非用户直接陈述）");
-  lines.push("- `[性格]`：人格特质（AI 推断或总结，非用户直接陈述）");
-  lines.push("- `[经验]`：经验总结（AI 推断或总结，非用户直接陈述）");
-  lines.push("- `[错误]`：错误教训（AI 推断或总结，非用户直接陈述）");
-  lines.push("- `[推测总结]`：AI 推断或总结，非用户直接陈述");
-  lines.push("- `[精华]`：用户手动输入的重要信息（最可信的信息）");
+  lines.push("- `[精华]`：用户手动输入的重要信息，或 AI 自动总结的洞察");
   lines.push("# 匹配的记忆");
   lines.push("");
 
@@ -82,56 +69,12 @@ export function formatPromptBlock(result, opts = {}) {
 
     // 原始字段
     const typeEn = safeTrim(item?.mem_type) || safeTrim(item?.type) || "fact";
-    const timestamp = safeTrim(item?.create_time);
-    const sourceTypeEn = safeTrim(item?.source_type); // raw / insight
-    const roleEn = safeTrim(item?.role);             // user / assistant
 
     if (wrapTagBlocks) {
       // 转换为中文
-      const typeZh = typeMap[typeEn] || typeEn;
+      const typeZh = typeMap[typeEn] || "记忆";
 
-      // 构建元数据部分（显示记忆类型和时间戳）
-      const metaParts = [];
-      metaParts.push(`[${typeZh}]`);
-
-      // 格式化时间戳
-      if (timestamp) {
-        let timeStr = "";
-        try {
-          const ts = Number(timestamp);
-          if (!isNaN(ts)) {
-            const date = new Date(ts);
-            timeStr = date.toLocaleString("zh-CN", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit"
-            });
-            metaParts.push(`[${timeStr}]`);
-          } else {
-            // 处理其他时间戳格式
-            const date = new Date(timestamp);
-            if (!isNaN(date.getTime())) {
-              timeStr = date.toLocaleString("zh-CN", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit"
-              });
-              metaParts.push(`[${timeStr}]`);
-            }
-          }
-        } catch (error) {
-          // 时间戳解析失败，不显示时间
-        }
-      }
-
-      const metaLine = metaParts.join("");
-
-      // 输出：元数据行 + 换行 + 文本（可能截断），然后空行分隔
-      lines.push(`${metaLine}：`);
+      lines.push(`[${typeZh}]：`);
       lines.push(clip(text, maxItemChars));
       lines.push(""); // 空行
     } else {

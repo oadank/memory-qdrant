@@ -8,8 +8,10 @@ import {
   pickFullSessionMessages,
   pickLastTurnMessages
 } from "./prompt-builder.js";
+import { defaultQueue } from "./filter-service.js";
 
 let lastCaptureTime = 0;
+let queueStarted = false;
 
 // ---------- 默认过滤规则 ----------
 const defaultFilterRules = {
@@ -24,7 +26,7 @@ const defaultFilterRules = {
     '^很高兴见到你',
     '有什么可以帮你的吗',
     '你好，我是',
-    '我是你的AI助理',
+    '我是你的 AI 助理',
     '新会话',
     '会话已',
     '新会话启动',
@@ -63,19 +65,19 @@ function shouldStore(text, role, filterRules, debug = false) {
   if (role === 'user') {
     for (const keyword of filterRules.userBlacklist) {
       if (text.includes(keyword)) {
-        if (debug) console.log(`[memory-qdrant] 过滤：用户消息命中黑名单词“${keyword}”，被过滤`);
+        if (debug) console.log(`[memory-qdrant] 过滤：用户消息命中黑名单词"${keyword}"，被过滤`);
         return false;
       }
     }
     for (const keyword of filterRules.deleteKeywords) {
       if (text.includes(keyword)) {
-        if (debug) console.log(`[memory-qdrant] 过滤：用户消息包含删除指令“${keyword}”，不存储`);
+        if (debug) console.log(`[memory-qdrant] 过滤：用户消息包含删除指令"${keyword}"，不存储`);
         return false;
       }
     }
     for (const keyword of filterRules.summaryKeywords) {
       if (text.includes(keyword)) {
-        if (debug) console.log(`[memory-qdrant] 过滤：用户消息包含总结指令“${keyword}”，不存储`);
+        if (debug) console.log(`[memory-qdrant] 过滤：用户消息包含总结指令"${keyword}"，不存储`);
         return false;
       }
     }
@@ -85,7 +87,7 @@ function shouldStore(text, role, filterRules, debug = false) {
     for (const pattern of filterRules.assistantBlacklistPatterns) {
       const regex = new RegExp(pattern, 'i');
       if (regex.test(text)) {
-        if (debug) console.log(`[memory-qdrant] 过滤：助手消息命中黑名单模式“${pattern}”，被过滤`);
+        if (debug) console.log(`[memory-qdrant] 过滤：助手消息命中黑名单模式"${pattern}"，被过滤`);
         return false;
       }
     }
@@ -116,6 +118,32 @@ export default {
 
   register(api) {
     console.log("[memory-qdrant] 插件已加载");
+
+    // 设置队列的存储回调
+    defaultQueue.setOnShouldStore((msg, filterResult) => {
+      const cfg = buildConfig(api.pluginConfig);
+      if (!cfg.addEnabled) return;
+
+      // 直接写入单条消息
+      addMessage(cfg, { messages: [msg] }).then(r => {
+        if (cfg.debug) {
+          if (r?.ok) {
+            console.log(`[memory-qdrant] 队列写入成功：${r.id}`);
+          } else {
+            console.log(`[memory-qdrant] 队列写入跳过：${r?.reason || "unknown"}`);
+          }
+        }
+      }).catch(err => {
+        console.error(`[memory-qdrant] 队列写入失败：${err.message}`);
+      });
+    });
+
+    // 启动队列处理（只启动一次）
+    if (!queueStarted) {
+      defaultQueue.start();
+      queueStarted = true;
+      console.log("[memory-qdrant] 模型过滤队列已启动");
+    }
 
     api.on("before_agent_start", async (event) => {
       const cfg = buildConfig(api.pluginConfig);
@@ -151,8 +179,8 @@ export default {
             ? result._debug.keywords.join(", ")
             : "无";
 
-          console.log(`关键词: ${kwLine}`);
-          console.log(`向量命中: ${result._debug.denseHits} | 关键词命中: ${result._debug.sparseHits} | 最终融合: ${result._debug.fusedHits}`);
+          console.log(`关键词：${kwLine}`);
+          console.log(`向量命中：${result._debug.denseHits} | 关键词命中：${result._debug.sparseHits} | 最终融合：${result._debug.fusedHits}`);
 
           if (Array.isArray(result._debug.topPreview) && result._debug.topPreview.length) {
             console.log("Top 3 结果预览:");
@@ -182,7 +210,7 @@ export default {
         }
 
         if (cfg.debug) {
-          console.log(`[memory-qdrant] 已注入系统提示词+查询记忆`);
+          console.log(`[memory-qdrant] 已注入系统提示词 + 查询记忆`);
         }
 
         return { prependContext: promptBlock };
@@ -218,29 +246,53 @@ export default {
           return;
         }
 
-        // 过滤消息：只保留通过 shouldStore 的消息
-        const filteredMessages = [];
-        for (const msg of rawMessages) {
-          const text = extractText(msg.content);
-          const role = msg.role;
-          if (shouldStore(text, role, filterRules, cfg.debug)) {
-            filteredMessages.push(msg);
+        // 新增：使用模型过滤队列
+        if (cfg.useLLMFilter !== false) {
+          // 使用模型过滤：快速规则过滤后入队，由模型做最终判断
+          const preFilteredMessages = [];
+          for (const msg of rawMessages) {
+            const text = extractText(msg.content);
+            const role = msg.role;
+            // 只进行最基本的快速过滤（黑名单、过短）
+            if (shouldStore(text, role, filterRules, false)) {
+              preFilteredMessages.push(msg);
+            }
           }
-        }
 
-        if (filteredMessages.length === 0) {
-          if (cfg.debug) console.log("[memory-qdrant] 所有消息均被过滤，不写入任何消息");
-          return;
-        }
-
-        const payload = { messages: filteredMessages };
-        const r = await addMessage(cfg, payload);
-
-        if (cfg.debug) {
-          if (r?.ok) {
-            console.log(`[memory-qdrant] 写入成功: id=${r.id} count=${r.count ?? filteredMessages.length}`);
+          if (preFilteredMessages.length > 0) {
+            // 入队，由模型做最终判断
+            defaultQueue.enqueue(preFilteredMessages);
+            if (cfg.debug) {
+              console.log(`[memory-qdrant] ${preFilteredMessages.length} 条消息已入队，等待模型过滤`);
+            }
           } else {
-            console.log(`[memory-qdrant] 写入跳过: ${r?.reason || "unknown"}`);
+            if (cfg.debug) console.log("[memory-qdrant] 所有消息被快速规则过滤");
+          }
+        } else {
+          // 不使用模型过滤：使用原有规则过滤
+          const filteredMessages = [];
+          for (const msg of rawMessages) {
+            const text = extractText(msg.content);
+            const role = msg.role;
+            if (shouldStore(text, role, filterRules, cfg.debug)) {
+              filteredMessages.push(msg);
+            }
+          }
+
+          if (filteredMessages.length === 0) {
+            if (cfg.debug) console.log("[memory-qdrant] 所有消息均被过滤，不写入任何消息");
+            return;
+          }
+
+          const payload = { messages: filteredMessages };
+          const r = await addMessage(cfg, payload);
+
+          if (cfg.debug) {
+            if (r?.ok) {
+              console.log(`[memory-qdrant] 写入成功：id=${r.id} count=${r.count ?? filteredMessages.length}`);
+            } else {
+              console.log(`[memory-qdrant] 写入跳过：${r?.reason || "unknown"}`);
+            }
           }
         }
       } catch (err) {
