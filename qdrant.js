@@ -231,21 +231,8 @@ export async function extractKeywords(cfg, raw) {
 
   let tokens = [];
   if (jieba?.cut) {
-    // 使用 Jieba 分词，并尝试提取短语
+    // 使用 Jieba 分词
     tokens = jieba.cut(processText, true);
-
-    // 尝试提取短语（2-gram 和 3-gram）
-    const phrases = [];
-    for (let i = 0; i < tokens.length - 1; i++) {
-      if (!isNoiseToken(tokens[i], stopSet) && !isNoiseToken(tokens[i+1], stopSet)) {
-        phrases.push(tokens[i] + tokens[i+1]);
-      }
-      if (i < tokens.length - 2 && !isNoiseToken(tokens[i], stopSet) &&
-          !isNoiseToken(tokens[i+1], stopSet) && !isNoiseToken(tokens[i+2], stopSet)) {
-        phrases.push(tokens[i] + tokens[i+1] + tokens[i+2]);
-      }
-    }
-    tokens = [...tokens, ...phrases];
   } else {
     tokens = processText
       .toLowerCase()
@@ -473,11 +460,22 @@ export async function searchMemory(cfg, payload) {
     }))
     .filter((m) => (m.memory_value ?? "").trim().length > 0);
 
-  const topPreview = scored.slice(0, 3).map((x) => ({
-    score: x.final,
-    text: (x.item?.payload?.text ?? "").toString().slice(0, 200),
-    kwHits: x.kwHits
-  }));
+  const topPreview = scored.slice(0, 3).map((x) => {
+    const matchingKeywords = [];
+    if (keywords.length > 0 && x.item?.payload?.tags) {
+      for (const kw of keywords) {
+        if (x.item.payload.tags.some(tag => tag.includes(kw) || kw.includes(tag))) {
+          matchingKeywords.push(kw);
+        }
+      }
+    }
+    return {
+      score: x.final,
+      text: (x.item?.payload?.text ?? "").toString().slice(0, 200),
+      kwHits: x.kwHits,
+      matchingKeywords: matchingKeywords
+    };
+  });
 
     return {
       data: { memory_detail_list, preference_detail_list: [] },
@@ -574,10 +572,7 @@ export async function addMessage(cfg, payload) {
         payload: {
           role: m.role,
           text: cleaned,
-          timestamp: new Date().toLocaleString('zh-CN', {
-            timeZone: 'Asia/Shanghai',
-            hour12: false
-          }),
+          timestamp: Date.now(),
           source_type: "raw",
           mem_type: "fact",
           tags: await extractKeywords(cfg, cleaned),

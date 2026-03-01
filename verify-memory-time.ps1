@@ -99,15 +99,17 @@ function ConvertTo-LocalTimeString {
             $dt = [DateTimeOffset]::FromUnixTimeSeconds($sec).LocalDateTime
             return $dt.ToString("yyyy-MM-dd HH:mm:ss")
         }
-        # 处理 ISO 8601 字符串（假设为 UTC）
+        # 处理普通日期格式（如 2026-03-01 14:16:57）
         $formats = @(
+            'yyyy-MM-dd HH:mm:ss',
+            'yyyy/MM/dd HH:mm:ss',
+            'yyyy/MM/dd HH:mm:ss',
             'yyyy-MM-ddTHH:mm:ss.fffZ',
             'yyyy-MM-ddTHH:mm:ssZ',
             'yyyy-MM-ddTHH:mm:ss.fffzzz',
             'yyyy-MM-ddTHH:mm:sszzz'
         )
-        $dt = [DateTime]::ParseExact($s, $formats, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal)
-        $dt = $dt.ToLocalTime()
+        $dt = [DateTime]::ParseExact($s, $formats, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeLocal)
         return $dt.ToString("yyyy-MM-dd HH:mm:ss")
     }
     catch {

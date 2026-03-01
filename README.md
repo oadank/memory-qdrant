@@ -1,7 +1,7 @@
 # 🧠 Memory Qdrant Plugin for OpenClaw
 
-一个基于 **Qdrant** 向量数据库的 OpenClaw 记忆插件，自动为智能体注入长期记忆，支持对话存储、语义检索、记忆删除与总结。  
-🧩 本插件由社区开发，完美适配 OpenClaw 生命周期钩子，让智能体拥有“记性”。
+一个基于 **Qdrant** 向量数据库的 OpenClaw 记忆插件，自动为智能体注入长期记忆，支持对话存储、语义检索、记忆删除与总结。
+🧩 本插件由社区开发，完美适配 OpenClaw 生命周期钩子，让智能体拥有"记性"。
 
 👉 **项目地址**：[https://github.com/oadank/memory-qdrant](https://github.com/oadank/memory-qdrant)
 
@@ -15,12 +15,13 @@ memory-qdrant/
 │   └── qdrant.exe          # Qdrant 可执行文件（已内置）
 ├── nssm/                   # NSSM (Non-Sucking Service Manager)
 │   └── nssm.exe            # 用于将 Qdrant 注册为 Windows 服务
-├── 管理Qdrant记忆.ps1      # 查看、按序号删除记忆的交互脚本
+├── frontend/               # 前端管理界面
+│   └── memory-manager-new.html  # 现代化记忆管理界面
 ├── auto_summary/           # 自动总结技能模块（Python）
-├── tools/                  # 其他辅助工具（预留）
-├── install.ps1             # 一键安装脚本（以管理员身份运行）
-├── uninstall.ps1           # 一键卸载脚本
+├── 管理 Qdrant 记忆.ps1      # 查看、按序号删除记忆的交互脚本
 ├── index.js                # OpenClaw 插件主逻辑
+├── server.js               # 前端管理界面服务器
+├── start-server.bat        # 快速启动脚本
 ├── package.json            # Node.js 依赖配置
 ├── openclaw.plugin.json    # 插件元数据
 └── README.md               # 本文档
@@ -34,9 +35,10 @@ memory-qdrant/
 |------|------|
 | **Qdrant** | 向量数据库，所有记忆以向量形式存储。`qdrant.exe` 已内置在 `qdrant/` 文件夹中，无需额外下载。 |
 | **NSSM** | Windows 服务管理器，用于将 Qdrant 注册为后台服务。`nssm.exe` 已内置在 `nssm/` 文件夹中，无需额外下载。 |
-| **Node.js** | 插件核心逻辑由 Node.js 实现。**需自行安装 Node.js 环境**（推荐 v18 或更高版本），但项目依赖的 `node_modules` 已打包在仓库中（约 2MB），无需运行 `npm install`。 |
-| **Python** | 自动总结功能需要 Python 环境，（需要系统已安装，并写入环境变量即可）。 |
+| **Node.js** | 插件核心逻辑由 Node.js 实现。**需自行安装 Node.js 环境**（推荐 v18 或更高版本）。 |
+| **Python** | 自动总结功能需要 Python 环境（需要系统已安装，并写入环境变量即可）。 |
 | **Ollama** | 用于生成向量嵌入和文本总结。需提前安装 Ollama 并拉取以下模型：<br>- 向量模型：`bge-m3:latest`（或其它兼容模型）<br>- 总结模型：`qwen2.5:14b-instruct`（或其它模型，可在配置中修改） |
+
 ---
 
 ## 🚀 安装与使用
@@ -47,26 +49,27 @@ git clone https://github.com/oadank/memory-qdrant.git
 cd memory-qdrant
 ```
 
-### 2. 一键安装（Windows）
-以 **管理员身份** 打开 PowerShell，执行安装脚本：
-```powershell
-.\install.ps1
+### 2. 启动前端管理服务
+
+在项目目录下直接运行：
+```bash
+node server.js
 ```
-脚本会自动完成：
-- 创建 Qdrant 数据目录 `qdrant/data` 和日志目录 `qdrant/logs`
-- 使用 NSSM 将 Qdrant 注册为 Windows 服务 `QdrantMemory` 并启动
-- 验证服务运行状态（默认端口 `6333`）
-- 在桌面创建快捷方式 `Qdrant记忆管理.lnk`，方便随时调用管理记忆
+或使用提供的批处理文件：
+```bash
+./start-server.bat
+```
 
-> ⚠️ **注意**：如果之前安装过旧版本，脚本会自动停止并删除旧服务，请确保已备份重要数据。
+服务启动后，打开浏览器访问 `http://localhost:3001` 即可使用前端管理界面。
 
-### 3. 管理记忆
-安装后，您可以通过以下方式查看和删除记忆：
-- 双击桌面上的 **`Qdrant记忆管理`** 快捷方式
-- 或在 PowerShell 中直接运行：
-  ```powershell
-  .\管理Qdrant记忆.ps1
-  ```
+> 📌 **提示**：前端管理界面提供可视化的记忆浏览、搜索、删除等功能，比命令行更方便。
+
+### 3. 管理记忆（可选）
+
+如需通过 PowerShell 脚本管理记忆，运行：
+```powershell
+.\管理 Qdrant 记忆.ps1
+```
 
 管理脚本提供交互式界面：
 - **显示所有记忆**（按时间排序）
@@ -76,11 +79,10 @@ cd memory-qdrant
 - **空格**：退出脚本
 
 ### 4. 卸载
-如需彻底移除插件及相关服务，以管理员身份运行：
-```powershell
-.\uninstall.ps1
-```
-脚本会停止并删除 Qdrant 服务，并询问是否删除数据目录。
+
+如需彻底移除插件及相关服务，手动执行以下操作：
+1. 停止正在运行的服务（Ctrl+C）
+2. 删除 `qdrant/data` 目录（可选，用于清除数据）
 
 ---
 
@@ -95,9 +97,17 @@ cd memory-qdrant
   - 支持通过关键词删除最近一条记忆。
   - 支持按语义删除与某话题相关的记忆。
   - 内置黑名单过滤，避免存储无意义内容（如问候语、指令）。
-- 📊 **记忆总结**：发送“总结记忆”即可触发异步总结，将多条原始记忆提炼为 `insight`，长期保存。
+- 📊 **记忆总结**：发送"总结记忆"即可触发异步总结，将多条原始记忆提炼为 `insight`，长期保存。
 - ⚙️ **高度可配置**：所有参数（如阈值、topK、过滤规则）均可通过 `openclaw.json` 配置。
 - 🛡️ **安全过滤**：内置用户黑名单、助手回复黑名单，防止存储敏感或无用信息。
+- 🌐 **现代化前端界面**：提供直观的 Web 界面管理记忆，包括：
+  - 分页浏览记忆内容
+  - 搜索功能（支持关键词高亮）
+  - 复制单条记忆内容
+  - 删除单条、批量或整页记忆
+  - 精华记忆分类显示
+  - 响应式设计，适配不同屏幕尺寸
+  - 现代化通知系统，取代侵入性弹窗
 
 ---
 
@@ -114,14 +124,15 @@ cd memory-qdrant
 | `topK` | integer | `3` | 检索返回的最大记忆条数 |
 | `dedupeThreshold` | number | `0.85` | 去重阈值（暂未使用） |
 | `userId` | string | `claw` | 当前用户的标识 |
-| `sharedUserId` | string | `shared` | 共享记忆的用户ID（用于 insight） |
+| `sharedUserId` | string | `shared` | 共享记忆的用户 ID（用于 insight） |
 | `fallbackToRaw` | boolean | `true` | 未找到 insight 时是否降级搜索 raw |
 | `summaryModel` | string | `qwen2.5:14b-instruct` | 用于总结的模型 |
 | `summaryMaxRaw` | integer | `100` | 一次总结最多处理多少条原始记忆 |
 | `filterRules` | object | 见下文 | 过滤规则 |
 
 ### `filterRules` 对象
-  - filterRules 是过滤规则，用于控制哪些对话内容不被存储。
+
+filterRules 是过滤规则，用于控制哪些对话内容不被存储。
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
@@ -140,10 +151,22 @@ cd memory-qdrant
 2. 每次对话，用户消息和助手回复都会被存储（除非被过滤规则拦截）。
 3. 下次提问时，插件会自动检索相关记忆并注入上下文。
 
+### 访问前端管理界面
+1. 确保插件服务正在运行
+2. 打开浏览器访问 `http://localhost:3001`
+3. 通过界面进行记忆管理操作：
+   - 浏览和搜索记忆内容
+   - 复制特定记忆内容
+   - 删除单条或多条记忆
+   - 批量操作（支持 "1,2,3" 或 "1-5" 格式）
+   - 查看精华记忆（insight 类型）
+   - 调整每页显示数量
+   - 页面刷新功能
+
 ### 记忆管理指令
-- **删除最后一条记忆**：发送“删除最后一条记忆”（或配置中的任意 `deleteKeywords`）。
-- **删除关于某话题的记忆**：发送“删除关于 XXX”（XXX 为话题关键词）。
-- **总结记忆**：发送“总结记忆”，插件将异步处理并生成 insight，稍后可查看结果。
+- **删除最后一条记忆**：发送"删除最后一条记忆"（或配置中的任意 `deleteKeywords`）。
+- **删除关于某话题的记忆**：发送"删除关于 XXX"（XXX 为话题关键词）。
+- **总结记忆**：发送"总结记忆"，插件将异步处理并生成 insight，稍后可查看结果。
 
 ### 检索优先级
 插件按以下顺序检索记忆：
@@ -172,29 +195,29 @@ cd memory-qdrant
   "should": [...],
   "min_should": { "min_count": 1 }
 }
-13:42:10 📊 raw_assistant 候选分数: 0.494, 内容: "⚙️ 会话已就绪..."
+13:42:10 📊 raw_assistant 候选分数：0.494, 内容："⚙️ 会话已就绪..."
 13:42:10 🔍 未找到高于阈值 0.7 的相关记忆。
-13:42:55 检查模式 "会话已" 是否匹配: true
-13:42:55 过滤：AI回复匹配黑名单模式 "会话已"
+13:42:55 检查模式 "会话已" 是否匹配：true
+13:42:55 过滤：AI 回复匹配黑名单模式 "会话已"
 ```
 
 ---
 
 ## ❓ 常见问题
 
-**Q: 为什么 Qdrant 报错 `invalid type: integer '1', expected struct MinShould`？**  
+**Q: 为什么 Qdrant 报错 `invalid type: integer '1', expected struct MinShould`？**
 A: 请确保插件代码中 `min_should` 使用对象格式 `{ min_count: 1 }`，而非数字 `1`。如果已修改但仍有错误，可能是 OpenClaw 加载了旧版插件，请检查插件路径并彻底重启。
 
-**Q: 为什么助手问候语还会被存储？**  
-A: 检查 `assistantBlacklistPatterns` 是否包含“会话已”等模式，并确认过滤函数中的正则匹配已启用（插件日志中应有“检查模式...”输出）。
+**Q: 为什么助手问候语还会被存储？**
+A: 检查 `assistantBlacklistPatterns` 是否包含"会话已"等模式，并确认过滤函数中的正则匹配已启用（插件日志中应有"检查模式..."输出）。
 
-**Q: 记忆检索不到，总是返回 0 条？**  
-A: 可能是相似度阈值过高，尝试降低 `THRESHOLD`；或确保 Qdrant 集合中有数据（可通过 `管理Qdrant记忆.ps1` 查看）。
+**Q: 记忆检索不到，总是返回 0 条？**
+A: 可能是相似度阈值过高，尝试降低 `THRESHOLD`；或确保 Qdrant 集合中有数据（可通过 `管理 Qdrant 记忆.ps1` 查看）。
 
-**Q: 一键安装后，Qdrant 服务无法启动？**  
+**Q: 一键安装后，Qdrant 服务无法启动？**
 A: 检查端口 6333 是否被占用，或查看 `qdrant/logs/` 下的日志文件。也可手动运行 `qdrant.exe` 测试。
 
-**Q: Anthropic API key 缺失错误怎么办？**  
+**Q: Anthropic API key 缺失错误怎么办？**
 A: 这是 OpenClaw 内置 slug generator 的错误，不影响核心功能。可在配置中关闭：`"slugGenerator": { "enabled": false }`。
 
 ---
@@ -212,4 +235,3 @@ MIT © 2026 [oadank](https://github.com/oadank)
 ---
 
 🌟 **如果这个插件对你有帮助，请给仓库点个 Star！**
-```

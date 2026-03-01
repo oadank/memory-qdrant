@@ -164,6 +164,9 @@ export default {
               }
               const s = typeof item?.score === "number" ? item.score.toFixed(4) : "n/a";
               console.log(`#${i + 1} 分数=${s} -> ${preview}`);
+              if (item.matchingKeywords && item.matchingKeywords.length > 0) {
+                console.log(`   命中词为：${item.matchingKeywords.join(", ")}`);
+              }
             });
           }
         }

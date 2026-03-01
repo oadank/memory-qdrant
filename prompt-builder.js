@@ -20,7 +20,7 @@ export function extractText(content) {
     if (typeof content.content === "string") return content.content;
     if (Array.isArray(content.content)) return content.content.map(extractText).filter(Boolean).join("\n");
   }
-  return String(content);
+  return "";
 }
 
 // 中英文类型映射
@@ -33,7 +33,8 @@ const typeMap = {
   experience: "经验",
   error: "错误",
   inference: "推测总结",
-  insight: "精华"
+  insight: "精华",
+  "assistant观点": "助手观点"
 };
 
 // 来源类型映射
@@ -63,15 +64,15 @@ export function formatPromptBlock(result, opts = {}) {
   lines.push("# 注入记忆");
   lines.push("");
   lines.push("记忆类型说明：");
-  lines.push("- `[记忆]`：客观事实（用户陈述或确认的信息）");
-  lines.push("- `[偏好]`：用户偏好（喜欢/不喜欢、习惯）");
-  lines.push("- `[规则]`：行为规则或约束（必须遵守）");
-  lines.push("- `[技能]`：技能或方法（如何做某事）");
-  lines.push("- `[性格]`：人格特质（回复风格等）");
-  lines.push("- `[经验]`：经验总结（从过往任务中习得）");
-  lines.push("- `[错误]`：错误教训（应避免的行为）");
+  lines.push("- `[记忆]`：用户或者助手的聊天记录原文");
+  lines.push("- `[偏好]`：用户偏好（AI 推断或总结，非用户直接陈述）");
+  lines.push("- `[规则]`：行为规则或约束（AI 推断或总结，非用户直接陈述）");
+  lines.push("- `[技能]`：技能或方法（AI 推断或总结，非用户直接陈述）");
+  lines.push("- `[性格]`：人格特质（AI 推断或总结，非用户直接陈述）");
+  lines.push("- `[经验]`：经验总结（AI 推断或总结，非用户直接陈述）");
+  lines.push("- `[错误]`：错误教训（AI 推断或总结，非用户直接陈述）");
   lines.push("- `[推测总结]`：AI 推断或总结，非用户直接陈述");
-  lines.push("- `[精华]`：用户手动输入的重要信息");
+  lines.push("- `[精华]`：用户手动输入的重要信息（最可信的信息）");
   lines.push("# 匹配的记忆");
   lines.push("");
 
@@ -89,9 +90,43 @@ export function formatPromptBlock(result, opts = {}) {
       // 转换为中文
       const typeZh = typeMap[typeEn] || typeEn;
 
-      // 构建元数据部分（只显示记忆类型）
+      // 构建元数据部分（显示记忆类型和时间戳）
       const metaParts = [];
       metaParts.push(`[${typeZh}]`);
+
+      // 格式化时间戳
+      if (timestamp) {
+        let timeStr = "";
+        try {
+          const ts = Number(timestamp);
+          if (!isNaN(ts)) {
+            const date = new Date(ts);
+            timeStr = date.toLocaleString("zh-CN", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit"
+            });
+            metaParts.push(`[${timeStr}]`);
+          } else {
+            // 处理其他时间戳格式
+            const date = new Date(timestamp);
+            if (!isNaN(date.getTime())) {
+              timeStr = date.toLocaleString("zh-CN", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+              });
+              metaParts.push(`[${timeStr}]`);
+            }
+          }
+        } catch (error) {
+          // 时间戳解析失败，不显示时间
+        }
+      }
 
       const metaLine = metaParts.join("");
 
