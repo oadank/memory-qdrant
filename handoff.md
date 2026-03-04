@@ -1,11 +1,29 @@
 # handoff.md
 
 ## 最后更新时间
-- 日期：2026-03-04（新会话噪音召回拦截 + 目录清理）
+- 日期：2026-03-04（PS1 脚本精简 + README 同步）
 - 更新者：Codex
 - 仓库：`C:\Users\oadan\openclaw_plugins\memory-qdrant`
 
 ## 本轮改动（按时间）
+- 同步 `README.md` 到“仅保留 1 个安装 + 1 个卸载脚本”现状：
+  - 目录结构删除单独安装/卸载与 `管理 Qdrant 记忆.ps1` 的文档引用。
+  - 安装章节删除“单独安装脚本”路径，仅保留“一键安装”与“手动安装命令”。
+  - 卸载章节改为“一键卸载所有服务.ps1”。
+  - FAQ 中“通过管理脚本查看数据”改为“通过前端 `http://localhost:3001` 查看”。
+- 按用户要求精简 `.ps1` 脚本（“只留 1 个安装和 1 个卸载”）：
+  - 保留：
+    - `一键安装所有服务.ps1`
+    - `一键卸载所有服务.ps1`（新增）
+  - 删除：
+    - `管理Qdrant记忆.ps1`
+    - `安装记忆管理服务.ps1`
+    - `卸载记忆管理服务.ps1`
+    - `卸载自动总结服务.ps1`
+    - `卸载 Qdrant 服务.ps1`
+    - `verify-memory-time.ps1`
+    - `apply-openclaw-display-mask.ps1`
+  - 目的：减少维护入口，统一服务安装/卸载流程，避免脚本漂移。
 - 针对用户日志反馈“新会话提示污染召回关键词”修复：
   - `index.js`：
     - `shouldSkipRecall` 新增 `isSessionStartupPrompt` 判定。
@@ -148,10 +166,6 @@
   - `auto_summary/auto_summary.py`：`get_unprocessed_raw` 改为只处理 `source_type=raw`（不再处理 `refined`）。
   - `auto_summary/auto_summary.py`：`INTERVAL_SECONDS` 从 `60` 调整为 `7200`（2 小时）。
   - 语法检查通过：`node --check filter-service.js`、`python -m py_compile auto_summary/auto_summary.py`。
-- 新增宿主显示补丁一键恢复脚本（用于 OpenClaw 升级后快速恢复）：
-  - 新增 `apply-openclaw-display-mask.ps1`
-  - 功能：给 `reply-DhtejUNZ.js` 重打“仅显示隐藏 `# 用户输入` 时间头”补丁。
-  - 特性：自动备份、重复执行幂等、语法检查与失败回滚提示。
 - 尝试改写宿主“用户输入”文本（实验性，针对用户反馈仍显示时间头）：
   - `index.js`：新增 `sanitizeUserPromptForModel`（基于 `stripSenderMeta` + 宽匹配去时间头）。
   - `before_agent_start`：
@@ -332,6 +346,7 @@
 - 管理页：
   - 新会话启动提示（`/new`/`/reset`）不会再触发记忆召回，日志噪音已下降。
   - 后端 JS 清洗规则已进入“单模块复用”状态，`index/qdrant/server/prompt-builder` 口径已对齐。
+  - 根目录 `.ps1` 已精简为 2 个入口：`一键安装所有服务.ps1` 与 `一键卸载所有服务.ps1`。
   - 仓库已完成一次“去脏”整理：不再把 `node_modules` 与运行日志作为版本化内容，后续提交噪音会明显降低。
   - 审查项 1/2/3 已落地：`auto_summary` 重复捞取风险已降低；插件配置面板与代码默认值更一致；采集清洗不再宽删“任意含日期方括号”文本。
   - `[agents/tool-images] Image resized...` 已在采集/写库/总结/注入/显示链路统一屏蔽，视觉上不应再出现。
@@ -370,7 +385,6 @@
   - 注入记忆块正文也已做显示清洗，避免在用户侧再次看到 `[Wed ... GMT+8]` 时间头。
   - 注入时间头清洗已改为宽匹配规则（中括号内含日期即去除）。
   - 已增加“宿主用户输入”改写尝试，若宿主允许可进一步去掉 `# 用户输入` 区时间头。
-  - 已提供“升级后快速恢复”脚本，可直接重打宿主显示补丁。
   - 自动总结已收敛：按批次归纳（非逐条），周期为 2 小时。
 - 记忆存储行为（当前预期）：
   - 采集源仍是 `agent_end`。
@@ -410,6 +424,7 @@
 - 用户确认：在保证现有功能前提下执行一次“大整理/大清洗”；nssm 服务相关核心文件名和功能不变。
 - 用户确认：继续执行“第二阶段整理”，对清洗逻辑做统一模块化改造。
 - 用户新增要求：日志与目录“看起来乱”需要立即收口（先拦启动噪音，再做物理清理）。
+- 用户新增要求：`.ps1` 过多过乱，保留“1个安装 + 1个卸载”，删除单独安装/卸载和管理脚本。
 
 ## 未解决问题 / 风险
 - 当前工作区存在大量历史未提交改动，操作时需避免误回滚。
@@ -421,7 +436,6 @@
 - 目前注入正文清洗会移除时间头，若后续需要“模型保留时间但用户不显示”，需改为双通道（显示文本/模型文本分离）。
 - 若时间文本出现在注入块的 `# 用户输入` 部分，则来源是宿主传入的用户消息原文，非 memory list 注入内容（插件当前仅控制 memory list 文本）。
 - `# 用户输入` 去时间头目前为“依赖宿主是否接受事件对象改写”的实验方案，存在不生效风险。
-- 宿主 `node_modules` 改动会被 OpenClaw 升级覆盖；需在升级后重新执行恢复脚本。
 - 仍需重启 `MemoryAutoSummary` 服务后，2 小时周期与“按批次总结”才会在线生效。
 - 记忆分类口径（raw/insight 细分规则）仍待用户最终定稿。
 - `auto_summary` 的 `order_by=timestamp` 依赖 Qdrant payload range index；若不建索引，旧逻辑会触发 `scroll 400`。
@@ -465,7 +479,6 @@
      - 回归注入正文：含 `[Wed ... GMT+8]` 的记忆在注入块中不再显示该时间头。
      - 若仍看到时间头，区分位置：`[记忆]/[精华]` 区仍出现=插件清洗问题；`# 用户输入` 区出现=宿主原文传入。
      - 回归实验改写：观察 `# 用户输入` 区时间头是否消失；若仍存在，判定宿主忽略 `event.prompt/event.messages` 改写。
-     - OpenClaw 升级后执行 `apply-openclaw-display-mask.ps1`，并重启宿主验证显示层是否恢复。
      - 回归存储口径：正常消息应以 `source_type=refined` 入库；仅模型梳理异常时回退为 `source_type=raw`。
      - 回归模型筛选：输入“加油，好了吗”应被判定为闲聊并过滤，不写入记忆。
      - 回归关键词清洗：构造 `Conversation info (untrusted metadata): ```json ... message_id ...``` 正文`，确认新写入记录 `tags` 不含 `conversation/info/untrusted/metadata/message_id/UUID`。
@@ -555,6 +568,7 @@ rg -n "sanitizeText\\(|text-cleaner\\.js|isProtocolOnly" index.js qdrant.js serv
 # 本地快速检查新会话提示拦截
 rg -n "isSessionStartupPrompt|A new session was started via /new or /reset|Session Startup sequence" index.js
 
-# 升级后重打宿主显示层补丁（仅隐藏显示，不改模型输入）
-powershell -NoProfile -ExecutionPolicy Bypass -File .\apply-openclaw-display-mask.ps1
+# 一键安装/卸载全部服务（管理员权限）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\一键安装所有服务.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\一键卸载所有服务.ps1
 ```
