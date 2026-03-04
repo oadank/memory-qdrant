@@ -5,6 +5,7 @@ import axios from 'axios'; // 需要安装axios
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { sanitizeText } from './text-cleaner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,27 +37,18 @@ const client = new QdrantClient({ url: QDRANT_URL });
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function cleanInputText(raw) {
-    let text = (raw ?? '').toString();
-    // 先去角色前缀，避免 "user: Sender(...)" 这种变体漏清洗
-    text = text.replace(/^\s*(user|assistant)\s*:\s*/i, '');
-    // 清理宿主工具提示头
-    text = text.replace(/\[agents\/tool-images\][^\n\r]*/ig, ' ');
-
-    // 清理 untrusted metadata（支持开头/中间、多次出现）
-    text = text.replace(
-        /(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig,
-        ' '
-    );
-    text = text.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, ' ');
-    // 清理宿主协议控制标记，如 [[reply_to_current]]
-    text = text.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, '');
-    text = text.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, ' ');
-
-    // 清理常见时间头 [Wed 2026-03-04 02:23 GMT+8]
-    text = text.replace(/(?:^|\s)\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}[^\]]{0,40}\]\s*/g, ' ');
-    text = text.replace(/^\s*\[[^\]]{8,100}\]\s*/g, '');
-    text = text.replace(/\s+/g, ' ');
-    return text.trim();
+    return sanitizeText(raw, {
+        removeRolePrefix: true,
+        removeToolImageNotice: true,
+        removeUntrustedMetadata: true,
+        removeProtocolMarkers: true,
+        removeWeekdayTimeHead: true,
+        removeIsoTimeHead: true,
+        removeInlineWeekdayTime: true,
+        // 手动录入保持宽口径，最大化清掉前缀脏头
+        removeBroadLeadingBracket: true,
+        removeInlineAnyDateBracket: false
+    });
 }
 
 // 辅助函数：生成向量

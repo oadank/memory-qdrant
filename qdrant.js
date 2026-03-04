@@ -2,6 +2,7 @@
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "node:crypto";
+import { sanitizeText } from "./text-cleaner.js";
 
 /** ---------------- config ---------------- */
 
@@ -114,28 +115,18 @@ export async function embedText(cfg, text) {
  * 3) 丢/截断日志块（Headers/Body/token...）
  */
 export function cleanTextForMemory(raw, maxLen = 600) {
-  let t = (raw ?? "").toString();
-
-  // 去掉 role 前缀：user: / assistant:
-  t = t.replace(/^\s*(user|assistant)\s*:\s*/i, "");
-  // 去掉宿主工具提示头
-  t = t.replace(/\[agents\/tool-images\][^\n\r]*/ig, " ");
-
-  // 去掉 openclaw-control-ui 注入的 untrusted metadata（支持开头/中间、多次出现）
-  t = t.replace(
-    /(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig,
-    " "
-  );
-  t = t.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, " ");
-  // 去掉宿主协议控制头（如 [[reply_to_current]]）
-  t = t.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "");
-  t = t.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ");
-
-  // 去掉开头的 [Fri 2026-02-27 ...] 这类时间戳前缀（尽量宽松）
-  // 例：[Fri 2026-02-27 11:02 GMT+8] xxx
-  t = t.replace(/^\s*\[[^\]]{5,80}\]\s*/g, "");
-  // 去掉中间残留的同类时间片段
-  t = t.replace(/(?:^|\s)\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}[^\]]{0,40}\]\s*/g, " ");
+  let t = sanitizeText(raw, {
+    removeRolePrefix: true,
+    removeToolImageNotice: true,
+    removeUntrustedMetadata: true,
+    removeProtocolMarkers: true,
+    removeWeekdayTimeHead: true,
+    removeIsoTimeHead: true,
+    removeInlineWeekdayTime: true,
+    // qdrant 写库口径保留较宽前缀清洗，兼容历史脏头
+    removeBroadLeadingBracket: true,
+    removeInlineAnyDateBracket: false
+  });
 
   // 截断日志块：一出现就把后面砍掉（避免 token/headers/body 主导 embedding）
   const cutMarkers = [

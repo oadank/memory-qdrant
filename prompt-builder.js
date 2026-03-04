@@ -1,4 +1,5 @@
 // prompt-builder.js
+import { sanitizeText } from "./text-cleaner.js";
 export const USER_QUERY_MARKER = "\n\n# 用户输入\n";
 
 function safeTrim(s) {
@@ -12,18 +13,18 @@ function clip(text, maxLen) {
 }
 
 function cleanInjectedMemoryText(text) {
-  return (text ?? "")
-    .toString()
-    .replace(/^\s*(user|assistant)\s*:\s*/i, "")
-    .replace(/\[agents\/tool-images\][^\n\r]*/ig, " ")
-    .replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig, " ")
-    .replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, " ")
-    .replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "")
-    .replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ")
-    // 宽匹配时间头：只要中括号里出现 YYYY-MM-DD 就清掉
-    .replace(/(?:^|\s)\[[^\]]*\d{4}-\d{2}-\d{2}[^\]]*\]\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return sanitizeText(text, {
+    removeRolePrefix: true,
+    removeToolImageNotice: true,
+    removeUntrustedMetadata: true,
+    removeProtocolMarkers: true,
+    removeWeekdayTimeHead: true,
+    removeIsoTimeHead: true,
+    removeInlineWeekdayTime: true,
+    removeBroadLeadingBracket: false,
+    // 注入显示继续保留“日期方括号宽清理”，避免用户侧看到时间头噪音
+    removeInlineAnyDateBracket: true
+  });
 }
 
 export function extractText(content) {

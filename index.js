@@ -9,6 +9,7 @@ import {
   pickLastTurnMessages
 } from "./prompt-builder.js";
 import { defaultQueue } from "./filter-service.js";
+import { sanitizeText, isProtocolOnly } from "./text-cleaner.js";
 
 let lastCaptureTime = 0;
 let queueStarted = false;
@@ -90,7 +91,7 @@ function shouldStore(text, role, filterRules, debug = false) {
 
   if (role === 'assistant') {
     // 宿主协议控制头（如 [[reply_to_current]]）不进记忆
-    if (/^\s*(\[\[[a-z0-9_:-]+\]\]\s*)+$/i.test(cleanedText)) {
+    if (isProtocolOnly(cleanedText)) {
       if (debug) console.log("[memory-qdrant] 过滤：助手协议控制消息，不存储");
       return false;
     }
@@ -140,37 +141,21 @@ function hasImageContent(content) {
 }
 
 function stripSenderMeta(text) {
-  let s = (text ?? "").toString();
-  s = s.replace(/^\s*(user|assistant)\s*:\s*/i, "");
-  // 去掉宿主工具提示头
-  s = s.replace(/\[agents\/tool-images\][^\n\r]*/ig, " ");
-  // 去掉 openclaw-control-ui 的 metadata 头（开头/中间）
-  s = s.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig, " ");
-  s = s.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, " ");
-  // 去掉宿主协议头：[[reply_to_current]]、[[tool_call]] 等
-  s = s.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "");
-  s = s.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ");
-  // 去掉明确时间戳头（仅匹配已知系统格式，避免误删正常方括号内容）
-  s = s.replace(/^\s*\[(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+GMT[+-]\d+\]\s*/ig, "");
-  s = s.replace(/^\s*\[\d{4}-\d{2}-\d{2}T[^\]]+\]\s*/ig, "");
-  s = s.replace(/\s+/g, " ");
-  return s.trim();
+  return sanitizeText(text, {
+    removeRolePrefix: true,
+    removeToolImageNotice: true,
+    removeUntrustedMetadata: true,
+    removeProtocolMarkers: true,
+    removeWeekdayTimeHead: true,
+    removeIsoTimeHead: true,
+    removeInlineWeekdayTime: true,
+    removeBroadLeadingBracket: false,
+    removeInlineAnyDateBracket: false
+  });
 }
 
 function sanitizeUserPromptForModel(text) {
-  let s = stripSenderMeta(text);
-  s = s.replace(/\s+/g, " ");
-  return s.trim();
-}
-
-function stripProtocolMarkers(text) {
-  let s = (text ?? "").toString();
-  // 去掉宿主协议头：[[reply_to_current]]、[[tool_call]] 等（可连续出现）
-  s = s.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "");
-  // 去掉正文中孤立的协议标记
-  s = s.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ");
-  s = s.replace(/\s+/g, " ");
-  return s.trim();
+  return stripSenderMeta(text);
 }
 
 function shouldSkipAdd(event, cfg) {

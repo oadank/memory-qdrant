@@ -1,11 +1,28 @@
 # handoff.md
 
 ## 最后更新时间
-- 日期：2026-03-04（仓库大整理/大清洗）
+- 日期：2026-03-04（第二阶段：统一清洗模块）
 - 更新者：Codex
 - 仓库：`C:\Users\oadan\openclaw_plugins\memory-qdrant`
 
 ## 本轮改动（按时间）
+- 第二阶段整理（用户确认执行）：
+  - 新增统一清洗模块：`text-cleaner.js`
+    - 提供 `sanitizeText`、`stripProtocolMarkers`、`isProtocolOnly`，统一处理：
+      - role 前缀
+      - `[agents/tool-images]` 提示
+      - `Sender/Conversation info (untrusted metadata)`
+      - `[[reply_to_current]]` 等协议标记
+      - 时间头（按场景可配置宽/窄规则）
+  - 接入统一模块（减少重复正则与口径漂移）：
+    - `index.js`：`stripSenderMeta/sanitizeUserPromptForModel` 改为复用 `sanitizeText`。
+    - `qdrant.js`：`cleanTextForMemory` 改为复用 `sanitizeText`（保留写库宽口径）。
+    - `server.js`：`cleanInputText` 改为复用 `sanitizeText`（保留手动录入宽口径）。
+    - `prompt-builder.js`：`cleanInjectedMemoryText` 改为复用 `sanitizeText`（保留注入显示的日期方括号宽清理）。
+  - 结果：后端 JS 链路清洗规则集中化，后续新增脏头只需改一处。
+  - 语法检查通过：
+    - `node --check text-cleaner.js index.js qdrant.js server.js prompt-builder.js filter-service.js`
+    - `python -m py_compile auto_summary/auto_summary.py`
 - 仓库卫生与结构整理（在不改 `server.js`、`auto_summary/auto_summary.py` 文件名与职责前提下）：
   - Git 仓库清洗：
     - 从版本库追踪中移除 `node_modules/`（历史误入库），保留本地依赖目录，不影响当前运行。
@@ -304,6 +321,7 @@
   - Qdrant 预期地址：`http://localhost:6333`
   - 管理端 API/UI 预期地址：`http://localhost:3001/`
 - 管理页：
+  - 后端 JS 清洗规则已进入“单模块复用”状态，`index/qdrant/server/prompt-builder` 口径已对齐。
   - 仓库已完成一次“去脏”整理：不再把 `node_modules` 与运行日志作为版本化内容，后续提交噪音会明显降低。
   - 审查项 1/2/3 已落地：`auto_summary` 重复捞取风险已降低；插件配置面板与代码默认值更一致；采集清洗不再宽删“任意含日期方括号”文本。
   - `[agents/tool-images] Image resized...` 已在采集/写库/总结/注入/显示链路统一屏蔽，视觉上不应再出现。
@@ -380,6 +398,7 @@
 - 用户新增要求：`[agents/tool-images] Image resized...` 提示需关闭（与业务记忆无关且影响视觉）。
 - 用户确认：按审查报告中的 1/2/3 三项直接给出补丁。
 - 用户确认：在保证现有功能前提下执行一次“大整理/大清洗”；nssm 服务相关核心文件名和功能不变。
+- 用户确认：继续执行“第二阶段整理”，对清洗逻辑做统一模块化改造。
 
 ## 未解决问题 / 风险
 - 当前工作区存在大量历史未提交改动，操作时需避免误回滚。
@@ -408,6 +427,7 @@
 - 该提示若在宿主主界面“非插件链路”直接渲染，插件无法从源头关闭；本次已在插件可控链路全部屏蔽。
 - `auto_summary` 仍使用“写入 `processed=\"processing\"` 后再汇总”的软锁方案；若未来出现异常退出，可能留下处理中状态，需要补“超时回收”策略。
 - 由于本次移除了大量历史误追踪文件（`node_modules`），首次推送变更体量较大；需关注远端仓库接收耗时。
+- Python 侧 `auto_summary.py` 仍是独立清洗实现（语言不同未与 JS 共用模块）；若新增新型脏头，需同步更新两侧。
 
 ## 下一步
 - 下一次要继续开发时：
@@ -447,6 +467,7 @@
      - 回归审查项 2：在插件配置页确认新增字段可见（`keywordMin/keywordTarget/useLLMFilter/filterRules`），且默认值与运行日志一致。
      - 回归审查项 3：输入正常方括号日期文本（非系统时间头）后，确认正文不会被误清理。
      - 回归仓库清洁度：`git status` 仅出现真实代码/文档改动，不再出现 `node_modules` 与运行日志噪音。
+     - 回归统一清洗模块：对 `index/qdrant/server/prompt-builder` 四条链路输入同一脏样本，确认输出一致且符合各自宽/窄策略。
      - 回归总结节奏：`auto_summary` 每 2 小时按批次（最多 20 条）生成 1 条综合 insight，而非逐条生成。
   6. 在同一轮更新本文件。
 
@@ -514,6 +535,9 @@ rg -n "sanitizeUserPromptForModel|仅匹配已知系统格式|\\[\\^\\]\\*\\\\d\
 # 本地快速检查仓库是否仍追踪 node_modules/log
 git ls-files node_modules
 git ls-files auto_summary/*.log
+
+# 本地快速检查统一清洗模块接入点
+rg -n "sanitizeText\\(|text-cleaner\\.js|isProtocolOnly" index.js qdrant.js server.js prompt-builder.js text-cleaner.js
 
 # 升级后重打宿主显示层补丁（仅隐藏显示，不改模型输入）
 powershell -NoProfile -ExecutionPolicy Bypass -File .\apply-openclaw-display-mask.ps1
