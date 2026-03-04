@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 export function buildConfig(pluginConfig = {}) {
   return {
     recallEnabled: pluginConfig.recallEnabled ?? true,
+    disableRecallOnImage: pluginConfig.disableRecallOnImage ?? false,
     addEnabled: pluginConfig.addEnabled ?? true,
     debug: pluginConfig.debug ?? true,
 
@@ -16,17 +17,19 @@ export function buildConfig(pluginConfig = {}) {
 
     embeddingProvider: pluginConfig.embeddingProvider ?? "ollama",
     ollamaUrl: pluginConfig.ollamaUrl ?? "http://127.0.0.1:11434",
-    embeddingModel: pluginConfig.embeddingModel ?? "nomic-embed-text",
+    embeddingModel: pluginConfig.embeddingModel ?? "bge-m3",
 
     // recall limits
-    memoryLimitNumber: pluginConfig.memoryLimitNumber ?? 3,
+    memoryLimitNumber: pluginConfig.memoryLimitNumber ?? 6,
     denseLimit: pluginConfig.denseLimit ?? 60,
     sparseEnabled: pluginConfig.sparseEnabled ?? true,
     sparseCandidateLimit: pluginConfig.sparseCandidateLimit ?? 240,
     sparseLimit: pluginConfig.sparseLimit ?? 80,
 
     // keywords
-    maxKeywords: pluginConfig.maxKeywords ?? 16,
+    keywordMin: pluginConfig.keywordMin ?? 8,
+    keywordTarget: pluginConfig.keywordTarget ?? 12,
+    maxKeywords: pluginConfig.maxKeywords ?? 15,
     kwMinHits: pluginConfig.kwMinHits ?? 2,          // 关键词多时最低命中数
     kwMinHitsShort: pluginConfig.kwMinHitsShort ?? 1, // 关键词少时最低命中数
 
@@ -115,10 +118,24 @@ export function cleanTextForMemory(raw, maxLen = 600) {
 
   // 去掉 role 前缀：user: / assistant:
   t = t.replace(/^\s*(user|assistant)\s*:\s*/i, "");
+  // 去掉宿主工具提示头
+  t = t.replace(/\[agents\/tool-images\][^\n\r]*/ig, " ");
+
+  // 去掉 openclaw-control-ui 注入的 untrusted metadata（支持开头/中间、多次出现）
+  t = t.replace(
+    /(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig,
+    " "
+  );
+  t = t.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, " ");
+  // 去掉宿主协议控制头（如 [[reply_to_current]]）
+  t = t.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "");
+  t = t.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ");
 
   // 去掉开头的 [Fri 2026-02-27 ...] 这类时间戳前缀（尽量宽松）
   // 例：[Fri 2026-02-27 11:02 GMT+8] xxx
   t = t.replace(/^\s*\[[^\]]{5,80}\]\s*/g, "");
+  // 去掉中间残留的同类时间片段
+  t = t.replace(/(?:^|\s)\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}[^\]]{0,40}\]\s*/g, " ");
 
   // 截断日志块：一出现就把后面砍掉（避免 token/headers/body 主导 embedding）
   const cutMarkers = [
@@ -181,7 +198,8 @@ const BASE_STOP = new Set([
 
   // 英文/日志噪音
   "gmt","utc","json","headers","body","type","token","expires","cached","access","content",
-  "post","get","status","server","date","application"
+  "post","get","status","server","date","application",
+  "conversation","info","untrusted","metadata","message","message_id","conversation_id","user_id","channel_id","sender"
 ]);
 
 function buildStopSet(cfg) {
@@ -203,6 +221,11 @@ function isNoiseToken(token, stopSet) {
 
   // 星期缩写
   if (/^(mon|tue|wed|thu|fri|sat|sun)$/i.test(t)) return true;
+  // UUID / 哈希类碎片
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(t)) return true;
+  if (/^[0-9a-f]{16,}$/i.test(t)) return true;
+  // 常见 metadata key 变体
+  if (/^(messageid|message_id|conversationid|conversation_id|userid|user_id|channelid|channel_id|requestid|request_id)$/i.test(t)) return true;
 
   return false;
 }
@@ -216,6 +239,33 @@ function uniqKeepOrder(arr) {
     out.push(x);
   }
   return out;
+}
+
+function sanitizeKeywords(list, stopSet, maxLen = 24) {
+  return (list ?? [])
+    .map((t) => (t ?? "").toString().trim())
+    .filter((t) => t.length >= 2 && t.length <= maxLen)
+    .filter((t) => !/^\d+$/.test(t))
+    .filter((t) => !isNoiseToken(t, stopSet));
+}
+
+function chooseKeywordTarget(cfg, textLen = 0) {
+  if (textLen > 400) return Math.min(cfg.maxKeywords, 15);
+  if (textLen >= 120) return Math.min(cfg.maxKeywords, Math.max(cfg.keywordTarget, 10));
+  return Math.min(cfg.maxKeywords, 10);
+}
+
+async function buildKeywords(cfg, text, llmKeywords = []) {
+  const target = chooseKeywordTarget(cfg, (text ?? "").length);
+  const minNeed = Math.min(cfg.keywordMin, target);
+  const stopSet = buildStopSet(cfg);
+
+  const fromLlm = sanitizeKeywords(llmKeywords, stopSet);
+  const fromJieba = await extractKeywords(cfg, text);
+  const merged = uniqKeepOrder([...fromLlm, ...fromJieba]).slice(0, cfg.maxKeywords);
+
+  if (merged.length >= minNeed) return merged.slice(0, target);
+  return merged;
 }
 
 export async function extractKeywords(cfg, raw) {
@@ -557,8 +607,8 @@ export async function addMessage(cfg, payload) {
 
     for (const m of msgs) {
       const cleaned = cleanTextForMemory(m.content, cfg.cleanMaxLen);
-      if (!cleaned || cleaned.length < cfg.minCaptureChars) {
-        if (cfg.debug) console.log(`[memory-qdrant] 添加消息: 消息过短 (${cleaned?.length}字符)`);
+      if (!cleaned) {
+        if (cfg.debug) console.log(`[memory-qdrant] 添加消息: 清洗后为空，跳过`);
         continue;
       }
 
@@ -570,22 +620,23 @@ export async function addMessage(cfg, payload) {
 
       const vector = await embedText(cfg, cleaned);
 
-      // 构建 payload，支持提炼后的文本
+      // 第一阶段固定为原始采集类型，分类留给自动总结阶段
+      const memType = "raw";
+
+      // 关键词策略：模型词优先 + jieba补全，目标10-12，范围8-15
+      const tags = await buildKeywords(cfg, cleaned, m._keywords || []);
+
+      // 构建 payload
       const pointPayload = {
         role: m.role,
         text: cleaned,
         timestamp: Date.now(),
-        source_type: m.original_text ? "refined" : "raw",  // 提炼后的文本标记为 refined
-        mem_type: "fact",
-        tags: await extractKeywords(cfg, cleaned),
+        source_type: m.original_text ? "refined" : "raw",
+        mem_type: memType,
+        tags,
         hash,
         processed: false
       };
-
-      // 如果有原文，保存原文字段
-      if (m.original_text) {
-        pointPayload.original_text = m.original_text;
-      }
 
       points.push({
         id: uuidv4(),
@@ -596,7 +647,7 @@ export async function addMessage(cfg, payload) {
 
     if (points.length === 0) {
       if (cfg.debug) console.log(`[memory-qdrant] 添加消息: 所有消息都被过滤或去重`);
-      return { ok: false, reason: "消息过短或已重复" };
+      return { ok: false, reason: "消息为空或已重复" };
     }
 
     if (cfg.debug) console.log(`[memory-qdrant] 添加消息: 开始写入 ${points.length} 条记忆`);
@@ -624,6 +675,52 @@ export async function addMessage(cfg, payload) {
 }
 
 /**
+ * 更新指定ID的记忆
+ */
+export async function updateMemoryById(cfg, id, updateData) {
+  try {
+    const client = makeQdrantClient(cfg);
+
+    // 首先获取现有的点
+    const existingPoints = await client.retrieve(cfg.collection, {
+      ids: [id],
+      with_payload: true,
+      with_vector: true
+    });
+
+    if (!existingPoints || existingPoints.length === 0) {
+      throw new Error(`未找到ID为 ${id} 的记忆`);
+    }
+
+    const existingPoint = existingPoints[0];
+
+    // 合并更新数据到现有负载
+    const updatedPayload = {
+      ...existingPoint.payload,
+      ...updateData,
+      // 确保更新时间戳
+      timestamp: new Date().toISOString(),
+      processed: true  // 标记为已处理
+    };
+
+    // 更新点
+    const updateResult = await client.upsert(cfg.collection, {
+      wait: true,
+      points: [{
+        id: id,
+        vector: existingPoint.vector,  // 保持原有向量
+        payload: updatedPayload
+      }]
+    });
+
+    return { ok: true, id: id, result: updateResult };
+  } catch (error) {
+    console.error(`[memory-qdrant] 更新记忆失败: ${error.message}`);
+    return { ok: false, reason: error.message };
+  }
+}
+
+/**
  * insight 写入：你后续本地模型输出 mem_type（fact/preference/rule/skill/persona_trait/experience/error/assistant观点）
  */
 export async function addInsight(cfg, payload) {
@@ -634,9 +731,7 @@ export async function addInsight(cfg, payload) {
     if (!cleaned || cleaned.length < cfg.minCaptureChars) return { ok: false, reason: "too short" };
 
   const memType = (payload?.mem_type ?? "assistant观点").toString().trim() || "assistant观点";
-  const tags = Array.isArray(payload?.tags) && payload.tags.length
-     ? payload.tags.filter(Boolean)
-     : await extractKeywords(cfg, cleaned);
+  const tags = await buildKeywords(cfg, cleaned, payload?.tags || []);
 
   const hash = sha1(`assistant\ninsight\n${memType}\n${cleaned}`);
   if (await existsHash(cfg, client, hash)) return { ok: false, reason: "deduped" };

@@ -9,6 +9,7 @@
     "type": "object",
     "properties": {
       "recallEnabled": { "type": "boolean", "default": true },
+      "disableRecallOnImage": { "type": "boolean", "default": false },
       "addEnabled": { "type": "boolean", "default": true },
       "debug": { "type": "boolean", "default": true },
 
@@ -17,7 +18,7 @@
 
       "embeddingProvider": { "type": "string", "default": "ollama" },
       "ollamaUrl": { "type": "string", "default": "http://127.0.0.1:11434" },
-      "embeddingModel": { "type": "string", "default": "nomic-embed-text" },
+      "embeddingModel": { "type": "string", "default": "bge-m3" },
 
       "memoryLimitNumber": { "type": "number", "default": 3 },
       "denseLimit": { "type": "number", "default": 60 },
@@ -26,7 +27,9 @@
       "sparseCandidateLimit": { "type": "number", "default": 240 },
       "sparseLimit": { "type": "number", "default": 80 },
 
-      "maxKeywords": { "type": "number", "default": 16 },
+      "keywordMin": { "type": "number", "default": 8 },
+      "keywordTarget": { "type": "number", "default": 12 },
+      "maxKeywords": { "type": "number", "default": 15 },
       "kwMinHits": { "type": "number", "default": 2 },
       "kwMinHitsShort": { "type": "number", "default": 1 },
 
@@ -42,6 +45,11 @@
 
       "throttleMs": { "type": "number", "default": 800 },
       "captureStrategy": { "type": "string", "default": "last_turn" },
+      "useLLMFilter": { "type": "boolean", "default": true },
+      "filterRules": {
+        "type": "object",
+        "default": {}
+      },
 
       "includeAssistant": { "type": "boolean", "default": true },
       "maxMessageChars": { "type": "number", "default": 2000 },

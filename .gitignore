@@ -6,3 +6,7 @@ claude-project.json
 auto_summary/*.log
 auto_summary/*.txt
 *.log
+auto_summary/__pycache__/
+*.bak
+*.tmp
+*.temp

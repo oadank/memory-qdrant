@@ -18,11 +18,15 @@ memory-qdrant/
 ├── frontend/               # 前端管理界面
 │   └── memory-manager-new.html  # 现代化记忆管理界面
 ├── auto_summary/           # 自动总结技能模块（Python）
+├── 一键安装所有服务.ps1     # 一键安装全部 3 个服务（推荐）
+├── 安装记忆管理服务.ps1     # 单独安装前端管理服务
+├── 卸载记忆管理服务.ps1     # 单独卸载前端管理服务
+├── 卸载 Qdrant 服务.ps1     # 卸载 Qdrant 数据库服务
+├── 卸载自动总结服务.ps1     # 卸载自动总结服务
 ├── 管理 Qdrant 记忆.ps1      # 查看、按序号删除记忆的交互脚本
 ├── index.js                # OpenClaw 插件主逻辑
 ├── filter-service.js       # AI 模型过滤服务
 ├── server.js               # 前端管理界面服务器
-├── start-server.bat        # 快速启动脚本
 ├── package.json            # Node.js 依赖配置
 ├── openclaw.plugin.json    # 插件元数据
 └── README.md               # 本文档
@@ -50,20 +54,64 @@ git clone https://github.com/oadank/memory-qdrant.git
 cd memory-qdrant
 ```
 
-### 2. 启动前端管理服务
+### 2. 安装服务
 
-在项目目录下直接运行：
-```bash
-node server.js
+#### 方法 A：一键安装所有服务（推荐）
+
+右键点击 `一键安装所有服务.ps1`，选择 **以管理员身份运行**
+
+脚本将自动安装以下 3 个服务：
+| 服务名 | 说明 |
+|--------|------|
+| `QdrantDB` | Qdrant 向量数据库服务 |
+| `MemoryAutoSummary` | 记忆自动总结服务（Python） |
+| `QdrantMemoryManager` | 记忆管理前端服务（Node.js） |
+
+安装完成后访问 `http://localhost:3001` 即可使用前端管理界面。
+
+#### 方法 B：单独安装某个服务
+
+| 服务 | 安装脚本 |
+|------|----------|
+| 记忆管理前端 | 右键运行 `安装记忆管理服务.ps1` |
+| Qdrant 数据库 | 参考下方"手动安装命令" |
+| 自动总结服务 | 参考下方"手动安装命令" |
+
+#### 方法 C：手动安装命令（高级用户）
+
+以管理员身份打开 PowerShell 或 CMD，执行：
+
+```cmd
+REM 1. 安装 Qdrant 数据库服务
+cd C:\Users\oadan\openclaw_plugins\memory-qdrant
+nssm\nssm.exe install QdrantDB "C:\你的路径\qdrant\qdrant.exe"
+nssm\nssm.exe set QdrantDB DisplayName "Qdrant 向量数据库"
+nssm\nssm.exe set QdrantDB Description "Qdrant 向量数据库服务"
+nssm\nssm.exe set QdrantDB Start SERVICE_AUTO_START
+nssm\nssm.exe set QdrantDB AppDirectory "C:\你的路径\qdrant"
+nssm\nssm.exe set QdrantDB ObjectName LocalSystem
+nssm\nssm.exe start QdrantDB
+
+REM 2. 安装记忆管理前端服务
+nssm\nssm.exe install QdrantMemoryManager "C:\你的路径\node.exe" "C:\你的路径\server.js"
+nssm\nssm.exe set QdrantMemoryManager DisplayName "Qdrant 记忆管理器"
+nssm\nssm.exe set QdrantMemoryManager Description "Qdrant 向量记忆管理服务"
+nssm\nssm.exe set QdrantMemoryManager Start SERVICE_AUTO_START
+nssm\nssm.exe set QdrantMemoryManager AppDirectory "C:\你的路径\"
+nssm\nssm.exe set QdrantMemoryManager ObjectName LocalSystem
+nssm\nssm.exe start QdrantMemoryManager
+
+REM 3. 安装自动总结服务
+nssm\nssm.exe install MemoryAutoSummary "C:\你的路径\python.exe" "C:\你的路径\auto_summary\auto_summary.py"
+nssm\nssm.exe set MemoryAutoSummary DisplayName "记忆自动总结服务"
+nssm\nssm.exe set MemoryAutoSummary Description "AI 记忆自动总结服务"
+nssm\nssm.exe set MemoryAutoSummary Start SERVICE_AUTO_START
+nssm\nssm.exe set MemoryAutoSummary AppDirectory "C:\你的路径\auto_summary"
+nssm\nssm.exe set MemoryAutoSummary ObjectName LocalSystem
+nssm\nssm.exe start MemoryAutoSummary
 ```
-或使用提供的批处理文件：
-```bash
-./start-server.bat
-```
 
-服务启动后，打开浏览器访问 `http://localhost:3001` 即可使用前端管理界面。
-
-> 📌 **提示**：前端管理界面提供可视化的记忆浏览、搜索、删除等功能，比命令行更方便。
+> ⚠️ 注意：请将 `C:\你的路径` 替换为实际项目路径
 
 ### 3. 管理记忆（可选）
 
@@ -79,11 +127,28 @@ node server.js
 - **直接回车**：刷新列表
 - **空格**：退出脚本
 
-### 4. 卸载
+### 4. 卸载服务
 
-如需彻底移除插件及相关服务，手动执行以下操作：
-1. 停止正在运行的服务（Ctrl+C）
-2. 删除 `qdrant/data` 目录（可选，用于清除数据）
+#### 方法 A：使用卸载脚本
+
+| 服务 | 卸载脚本 |
+|------|----------|
+| 记忆管理前端 | 右键运行 `卸载记忆管理服务.ps1` |
+| Qdrant 数据库 | 右键运行 `卸载 Qdrant 服务.ps1` |
+| 自动总结服务 | 右键运行 `卸载自动总结服务.ps1` |
+
+#### 方法 B：手动删除服务
+
+```cmd
+nssm\nssm.exe stop <服务名>
+nssm\nssm.exe remove <服务名> confirm
+```
+
+#### 彻底清除数据
+
+1. 停止并删除所有服务
+2. 删除 `logs/` 目录（日志文件）
+3. 删除 `qdrant/data` 目录（可选，用于清除向量数据）
 
 ---
 

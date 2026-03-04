@@ -12,15 +12,17 @@ import { defaultQueue } from "./filter-service.js";
 
 let lastCaptureTime = 0;
 let queueStarted = false;
+let cleanupRegistered = false;
 
 // ---------- 默认过滤规则 ----------
 const defaultFilterRules = {
-  minLength: 10,
+  minLength: 2,  // 降低最小长度限制，允许较短的用户消息通过
   userBlacklist: [
     '截屏', '截图', '重启', '打开浏览器', '/new', '/reset', '你好', '测试', '继续', '你挂了？',
     'HEARTBEAT.md', 'Read HEARTBEAT.md', 'If nothing needs attention',
     'Do not infer or repeat old tasks from prior chats', 'Current time',
-    '你正在通过 QQ 与用户对话', '定时', '提醒', 'System', '更新', '尼玛', '傻逼'
+    '你正在通过 QQ 与用户对话', '定时', '提醒', 'System', '更新', '尼玛', '傻逼',
+    '[agents/tool-images]', 'Image resized to fit limits'
   ],
   assistantBlacklistPatterns: [
     '^很高兴见到你',
@@ -39,6 +41,8 @@ const defaultFilterRules = {
     '干啥',
     'HEARTBEAT_OK',
     'object Object',
+    '\\[agents\\/tool-images\\]',
+    'Image resized to fit limits',
   ],
   deleteKeywords: ['删除最后一条记忆', '删除刚才那句', '删除刚才的问题', '删除上一条', '删除关于'],
   summaryKeywords: ['总结记忆', '总结一下', '帮我总结']
@@ -57,26 +61,27 @@ function buildFilterRules(config) {
 
 // ---------- 统一前缀的过滤函数 ----------
 function shouldStore(text, role, filterRules, debug = false) {
-  if (!text || text.length < filterRules.minLength) {
-    if (debug) console.log(`[memory-qdrant] 过滤：消息过短 (${text?.length})，不存储`);
+  const cleanedText = sanitizeUserPromptForModel(text);
+  if (!cleanedText || cleanedText.length < filterRules.minLength) {
+    if (debug) console.log(`[memory-qdrant] 过滤：消息过短 (${cleanedText?.length ?? 0})，不存储`);
     return false;
   }
 
   if (role === 'user') {
     for (const keyword of filterRules.userBlacklist) {
-      if (text.includes(keyword)) {
+      if (cleanedText.includes(keyword)) {
         if (debug) console.log(`[memory-qdrant] 过滤：用户消息命中黑名单词"${keyword}"，被过滤`);
         return false;
       }
     }
     for (const keyword of filterRules.deleteKeywords) {
-      if (text.includes(keyword)) {
+      if (cleanedText.includes(keyword)) {
         if (debug) console.log(`[memory-qdrant] 过滤：用户消息包含删除指令"${keyword}"，不存储`);
         return false;
       }
     }
     for (const keyword of filterRules.summaryKeywords) {
-      if (text.includes(keyword)) {
+      if (cleanedText.includes(keyword)) {
         if (debug) console.log(`[memory-qdrant] 过滤：用户消息包含总结指令"${keyword}"，不存储`);
         return false;
       }
@@ -84,15 +89,21 @@ function shouldStore(text, role, filterRules, debug = false) {
   }
 
   if (role === 'assistant') {
+    // 宿主协议控制头（如 [[reply_to_current]]）不进记忆
+    if (/^\s*(\[\[[a-z0-9_:-]+\]\]\s*)+$/i.test(cleanedText)) {
+      if (debug) console.log("[memory-qdrant] 过滤：助手协议控制消息，不存储");
+      return false;
+    }
     for (const pattern of filterRules.assistantBlacklistPatterns) {
       const regex = new RegExp(pattern, 'i');
-      if (regex.test(text)) {
+      if (regex.test(cleanedText)) {
         if (debug) console.log(`[memory-qdrant] 过滤：助手消息命中黑名单模式"${pattern}"，被过滤`);
         return false;
       }
     }
   }
 
+  if (debug) console.log(`[memory-qdrant] 消息通过过滤，准备存储：role=${role}, length=${cleanedText?.length}`);
   return true;
 }
 
@@ -101,6 +112,65 @@ function shouldSkipRecall(prompt, cfg) {
   if (!cfg.recallEnabled) return true;
   if (!prompt || prompt.trim().length < 3) return true;
   return false;
+}
+
+function hasImageContent(content) {
+  if (content == null) return false;
+  if (Array.isArray(content)) return content.some((item) => hasImageContent(item));
+  if (typeof content === "object") {
+    const t = String(content.type ?? "").toLowerCase();
+    if (t.includes("image")) return true;
+    if (content.image_url || content.image || content.input_image) return true;
+    const mime = String(content.mime_type ?? content.mimeType ?? content.media_type ?? "").toLowerCase();
+    if (mime.startsWith("image/")) return true;
+    if (typeof content.url === "string") {
+      const url = content.url.toLowerCase();
+      if (url.startsWith("data:image")) return true;
+      if (/\.(png|jpg|jpeg|webp|gif|bmp)(\?|#|$)/i.test(url)) return true;
+    }
+    if (content.content != null) return hasImageContent(content.content);
+  }
+  if (typeof content === "string") {
+    const s = content.toLowerCase();
+    if (s.includes("data:image")) return true;
+    if (s.includes("image_url")) return true;
+    if (s.includes("\"type\":\"image")) return true;
+  }
+  return false;
+}
+
+function stripSenderMeta(text) {
+  let s = (text ?? "").toString();
+  s = s.replace(/^\s*(user|assistant)\s*:\s*/i, "");
+  // 去掉宿主工具提示头
+  s = s.replace(/\[agents\/tool-images\][^\n\r]*/ig, " ");
+  // 去掉 openclaw-control-ui 的 metadata 头（开头/中间）
+  s = s.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig, " ");
+  s = s.replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, " ");
+  // 去掉宿主协议头：[[reply_to_current]]、[[tool_call]] 等
+  s = s.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "");
+  s = s.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ");
+  // 去掉明确时间戳头（仅匹配已知系统格式，避免误删正常方括号内容）
+  s = s.replace(/^\s*\[(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+GMT[+-]\d+\]\s*/ig, "");
+  s = s.replace(/^\s*\[\d{4}-\d{2}-\d{2}T[^\]]+\]\s*/ig, "");
+  s = s.replace(/\s+/g, " ");
+  return s.trim();
+}
+
+function sanitizeUserPromptForModel(text) {
+  let s = stripSenderMeta(text);
+  s = s.replace(/\s+/g, " ");
+  return s.trim();
+}
+
+function stripProtocolMarkers(text) {
+  let s = (text ?? "").toString();
+  // 去掉宿主协议头：[[reply_to_current]]、[[tool_call]] 等（可连续出现）
+  s = s.replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "");
+  // 去掉正文中孤立的协议标记
+  s = s.replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ");
+  s = s.replace(/\s+/g, " ");
+  return s.trim();
 }
 
 function shouldSkipAdd(event, cfg) {
@@ -119,6 +189,9 @@ export default {
   register(api) {
     console.log("[memory-qdrant] 插件已加载");
 
+    // 清空旧队列（防止插件重载时积压）
+    defaultQueue.clear();
+
     // 设置队列的存储回调
     defaultQueue.setOnShouldStore((msg, filterResult) => {
       const cfg = buildConfig(api.pluginConfig);
@@ -134,7 +207,7 @@ export default {
         }
       }
 
-      // 直接写入单条消息
+      // 第一阶段统一存“采集记录”，不在此阶段产出精华
       addMessage(cfg, { messages: [msg] }).then(r => {
         if (cfg.debug) {
           if (r?.ok) {
@@ -155,19 +228,76 @@ export default {
       console.log("[memory-qdrant] 模型过滤队列已启动");
     }
 
+    // 插件卸载时清理队列（防止内存泄漏）
+    if (!cleanupRegistered) {
+      api.on("cleanup", async () => {
+        console.log("[memory-qdrant] 插件卸载，清理队列...");
+        defaultQueue.clear();
+        defaultQueue.stop();
+        queueStarted = false;
+        cleanupRegistered = true;
+      });
+    }
+
     api.on("before_agent_start", async (event) => {
       const cfg = buildConfig(api.pluginConfig);
       const filterRules = buildFilterRules(api.pluginConfig);
 
+      // 多模态轮次直接跳过记忆注入，避免干扰模型的图片输入处理
+      const hasImageInTurn = Array.isArray(event?.messages) && event.messages.some((m) => {
+        if (m?.role !== "user") return false;
+        return hasImageContent(m?.content);
+      });
+
+      // 兜底：直接扫描 event/prompt 文本中的图片标记
+      const eventStr = JSON.stringify(event ?? {});
+      const looksLikeImageTurn = /data:image|image_url|\"type\":\"image|\"mime(Type|_type)\":\"image\//i.test(eventStr);
+
+      // 仅包含 sender metadata、没有实际用户正文时，也跳过注入
       const prompt = extractText(event?.prompt);
-      if (shouldSkipRecall(prompt, cfg)) {
-        if (cfg.debug) console.log(`[memory-qdrant] 跳过召回：${prompt?.length ? '文本过短' : '空文本'}`);
+      const cleanPrompt = sanitizeUserPromptForModel(prompt);
+      const noRealUserText = !cleanPrompt || cleanPrompt.length < 3;
+
+      const shouldSkipForImage = cfg.disableRecallOnImage && (hasImageInTurn || looksLikeImageTurn);
+      if (shouldSkipForImage || noRealUserText) {
+        if (cfg.debug) {
+          console.log(
+            `[memory-qdrant] 跳过注入：disableRecallOnImage=${cfg.disableRecallOnImage}, image=${hasImageInTurn || looksLikeImageTurn}, noRealUserText=${noRealUserText}`
+          );
+        }
         return;
+      }
+      if (shouldSkipRecall(cleanPrompt, cfg)) {
+        if (cfg.debug) console.log(`[memory-qdrant] 跳过召回：${cleanPrompt?.length ? '文本过短' : '空文本'}`);
+        return;
+      }
+
+      // 实验性：尝试改写宿主侧“用户输入”文本，去掉 metadata/时间头
+      // 注意：是否生效取决于宿主是否允许 before_agent_start 修改 event。
+      try {
+        if (typeof event?.prompt === "string" && cleanPrompt) {
+          event.prompt = cleanPrompt;
+        }
+        if (Array.isArray(event?.messages) && event.messages.length > 0 && cleanPrompt) {
+          for (let i = event.messages.length - 1; i >= 0; i--) {
+            const m = event.messages[i];
+            if (m?.role !== "user") continue;
+            if (typeof m.content === "string") {
+              m.content = cleanPrompt;
+            } else if (m?.content && typeof m.content === "object") {
+              if (typeof m.content.text === "string") m.content.text = cleanPrompt;
+              if (typeof m.content.content === "string") m.content.content = cleanPrompt;
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        if (cfg.debug) console.log(`[memory-qdrant] 用户输入改写失败（可忽略）: ${e?.message || e}`);
       }
 
       // 打印用户原文（无前缀，保持简洁，限制长度）
       if (cfg.debug) {
-        let truncatedPrompt = prompt;
+        let truncatedPrompt = cleanPrompt;
         if (truncatedPrompt.length > 90) {
           truncatedPrompt = truncatedPrompt.slice(0, 90) + "…";
         }
@@ -177,7 +307,7 @@ export default {
       // 不管是否命中黑名单，检索都要正常进行
       try {
         const payload = {
-          query: prompt,
+          query: cleanPrompt,
           memory_limit_number: cfg.memoryLimitNumber
         };
 
@@ -256,16 +386,41 @@ export default {
           return;
         }
 
+        // 统一清洗采集文本：先清理 metadata/协议头/时间头，再进入日志、过滤与入队
+        const cleanedMessages = rawMessages
+          .map((msg) => {
+            const rawText = extractText(msg.content);
+            const cleanedText = sanitizeUserPromptForModel(rawText);
+            if (!cleanedText) return null;
+            return { ...msg, content: cleanedText };
+          })
+          .filter(Boolean);
+
+        if (!cleanedMessages.length) {
+          if (cfg.debug) console.log("[memory-qdrant] 跳过添加：清洗后无有效消息");
+          return;
+        }
+
+        if (cfg.debug) {
+          console.log(`[memory-qdrant] 捕获到 ${cleanedMessages.length} 条清洗后消息`);
+          cleanedMessages.forEach((msg, i) => {
+            const text = msg.content;
+            console.log(`[memory-qdrant] 消息${i+1}: role=${msg.role}, length=${text.length}, content="${text.substring(0, 100)}..."`);
+          });
+        }
+
         // 新增：使用模型过滤队列
         if (cfg.useLLMFilter !== false) {
           // 使用模型过滤：快速规则过滤后入队，由模型做最终判断
           const preFilteredMessages = [];
-          for (const msg of rawMessages) {
-            const text = extractText(msg.content);
+          for (const msg of cleanedMessages) {
+            const text = msg.content;
             const role = msg.role;
             // 只进行最基本的快速过滤（黑名单、过短）
-            if (shouldStore(text, role, filterRules, false)) {
+            if (shouldStore(text, role, filterRules, cfg.debug)) {
               preFilteredMessages.push(msg);
+            } else {
+              if (cfg.debug) console.log(`[memory-qdrant] 消息被基础过滤规则过滤：role=${role}, length=${text.length}`);
             }
           }
 
@@ -281,11 +436,13 @@ export default {
         } else {
           // 不使用模型过滤：使用原有规则过滤
           const filteredMessages = [];
-          for (const msg of rawMessages) {
-            const text = extractText(msg.content);
+          for (const msg of cleanedMessages) {
+            const text = msg.content;
             const role = msg.role;
             if (shouldStore(text, role, filterRules, cfg.debug)) {
               filteredMessages.push(msg);
+            } else {
+              if (cfg.debug) console.log(`[memory-qdrant] 消息被过滤：role=${role}, length=${text.length}`);
             }
           }
 

@@ -20,7 +20,10 @@
             --border-color: #dcdfe6;
             --header-height: 60px;
             --controls-height: 60px;
-            --footer-height: 120px;
+            --footer-height: 108px;
+            --insight-bg: #f0f7ff;
+            --insight-text: #1e6bb8;
+            --insight-border: #d0e1f7;
         }
 
         .dark-mode {
@@ -31,6 +34,68 @@
             --text-secondary: #b0b0b0;
             --text-placeholder: #666666;
             --border-color: #444444;
+            --insight-bg: #1a2633;
+            --insight-text: #64b5f6;
+            --insight-border: #2c3e50;
+        }
+
+        /* 暗黑模式下按钮背景调整 */
+        .dark-mode .message-actions {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .dark-mode .action-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .dark-mode .action-btn:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+            color: white;
+        }
+
+        .dark-mode .message-text .action-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 暗黑模式滚动条：降低亮度，避免过亮 */
+        .dark-mode .content,
+        .dark-mode .chat-container,
+        .dark-mode .footer,
+        .dark-mode .input-box {
+            scrollbar-color: #4a4a4a #252525;
+            scrollbar-width: thin;
+        }
+
+        .dark-mode .content::-webkit-scrollbar,
+        .dark-mode .chat-container::-webkit-scrollbar,
+        .dark-mode .footer::-webkit-scrollbar,
+        .dark-mode .input-box::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .dark-mode .content::-webkit-scrollbar-track,
+        .dark-mode .chat-container::-webkit-scrollbar-track,
+        .dark-mode .footer::-webkit-scrollbar-track,
+        .dark-mode .input-box::-webkit-scrollbar-track {
+            background: #252525;
+        }
+
+        .dark-mode .content::-webkit-scrollbar-thumb,
+        .dark-mode .chat-container::-webkit-scrollbar-thumb,
+        .dark-mode .footer::-webkit-scrollbar-thumb,
+        .dark-mode .input-box::-webkit-scrollbar-thumb {
+            background: #4a4a4a;
+            border-radius: 8px;
+            border: 1px solid #252525;
+        }
+
+        .dark-mode .content::-webkit-scrollbar-thumb:hover,
+        .dark-mode .chat-container::-webkit-scrollbar-thumb:hover,
+        .dark-mode .footer::-webkit-scrollbar-thumb:hover,
+        .dark-mode .input-box::-webkit-scrollbar-thumb:hover {
+            background: #5a5a5a;
         }
 
         * {
@@ -126,9 +191,11 @@
 
         .content {
             flex: 1;
-            padding-top: calc(var(--header-height) + var(--controls-height));
-            padding-bottom: var(--footer-height);
+            padding-top: 0;
             overflow-y: auto;
+            max-height: calc(100vh - var(--header-height) - var(--controls-height) - var(--footer-height));
+            margin-top: calc(var(--header-height) + var(--controls-height));
+            padding-bottom: 20px;
         }
 
         .controls {
@@ -293,68 +360,54 @@
             width: 100%;
             max-width: none;
             margin: 0;
+            padding-bottom: 20px;
         }
 
         .chat-messages {
             display: grid;
             grid-template-columns: 50px 1fr 50px;
             gap: 5px;
-            min-height: calc(100vh - var(--header-height) - var(--controls-height) - 120px);
+            min-height: 100%;
             padding-bottom: 20px;
         }
 
         .message-index-left, .message-index-right {
             text-align: center;
-            font-size: 12px;
-            color: var(--text-secondary);
-            padding-top: 18px;
+            font-size: 11px;
+            color: var(--text-placeholder);
+            padding-top: 8px;
             align-self: start;
             display: flex;
             align-items: flex-start;
             justify-content: center;
+            width: 50px;
+            min-height: 32px;
+        }
+
+        .message-index-left {
+            background: rgba(128, 128, 128, 0.08);
+            border-radius: 4px;
+        }
+
+        .message-index-left.hidden {
+            background: none;
+        }
+
+        .message-index-right {
+            background: rgba(128, 128, 128, 0.08);
+            border-radius: 4px;
+        }
+
+        .message-index-right.hidden {
+            background: none;
         }
 
         .message {
-            margin-bottom: 20px;
+            margin-bottom: 8px;
             display: flex;
             gap: 12px;
             position: relative;
-        }
-
-        .message-actions {
-            position: absolute;
-            top: 8px;
-            right: 8px; /* 放在消息框的右上角 */
-            display: none;
-            gap: 5px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 4px;
-            padding: 2px;
-            z-index: 100;
-        }
-
-        .message:hover .message-actions {
-            display: flex;
-        }
-
-        .action-btn {
-            width: 24px;
-            height: 24px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            border-radius: 3px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: var(--text-secondary);
-            z-index: 101;
-        }
-
-        .action-btn:hover {
-            background-color: var(--border-color);
-            color: var(--text-primary);
+            align-items: flex-start;
         }
 
         .message-avatar {
@@ -380,27 +433,158 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             font-size: 12px;
             color: var(--text-secondary);
+            line-height: 1;
         }
 
         .message-time {
             color: var(--text-secondary);
         }
 
+        .message-type {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        /* 标签样式 */
+        .message-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-bottom: 4px;
+            margin-top: 2px;
+        }
+
+        .message-tag {
+            display: inline-block;
+            padding: 1px 5px;
+            font-size: 10px;
+            background-color: rgba(64, 158, 255, 0.1);
+            color: var(--primary-color);
+            border-radius: 3px;
+            border: 1px solid rgba(64, 158, 255, 0.2);
+            line-height: 1.2;
+        }
+
+        .message.insight .message-tag {
+            background-color: rgba(30, 117, 184, 0.1);
+            color: var(--insight-text);
+            border-color: rgba(30, 117, 184, 0.2);
+        }
+
+        .message.user .message-tag {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.9);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* 序号样式 - 简洁数字样式 */
+        .index-num {
+            display: inline-block;
+            font-size: 11px;
+            color: var(--text-placeholder);
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
         .message-text {
             background-color: var(--card-bg);
-            padding: 12px 16px;
+            padding: 8px 40px 8px 12px; /* 增加右边距，为操作按钮预留空间 */
             border-radius: 8px;
             border: 1px solid var(--border-color);
             white-space: pre-wrap;
             word-wrap: break-word;
             position: relative;
+            max-width: 50%;
+            min-width: 100px;
+            line-height: 1.3;
             display: inline-block;
-            max-width: 100%;
-            min-width: 120px;
-            min-height: 38px;
+            width: fit-content;
+        }
+
+        .message-text .message-text-content {
+            display: block;
+        }
+
+        /* 操作按钮在文本框右上角 - 始终显示 */
+        .message-text .message-actions {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            display: flex;
+            gap: 2px;
+            opacity: 1;
+            line-height: 1;
+            vertical-align: top;
+        }
+
+        .action-btn {
+            width: 16px;
+            height: 16px;
+            border: none;
+            background: rgba(128, 128, 128, 0.15);
+            cursor: pointer;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: var(--text-secondary);
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        .action-btn:hover {
+            background-color: rgba(128, 128, 128, 0.3);
+            color: var(--text-primary);
+        }
+
+        .action-btn svg {
+            width: 10px;
+            height: 10px;
+        }
+
+        .message-text-content {
+            display: block;
+            margin: 0;
+            padding: 0;
+            line-height: inherit;
+        }
+
+        /* 用户消息的按钮颜色调整 - 使用深色背景高对比度 */
+        .message.user .message-text .action-btn {
+            background: rgba(0, 0, 0, 0.4);
+            color: white;
+        }
+
+        .message.user .message-text .action-btn:hover {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        /* 精华消息的按钮颜色 */
+        .message.insight .message-text .action-btn {
+            background: rgba(30, 117, 184, 0.25);
+            color: #1e6bb8;
+        }
+
+        .message.insight .message-text .action-btn:hover {
+            background-color: rgba(30, 117, 184, 0.4);
+        }
+
+        /* 暗黑模式下精华消息按钮 */
+        .dark-mode .message.insight .message-text .action-btn {
+            background: rgba(100, 181, 246, 0.3);
+            color: #64b5f6;
+        }
+
+        .dark-mode .message.insight .message-text .action-btn:hover {
+            background-color: rgba(100, 181, 246, 0.45);
         }
 
         .highlight {
@@ -430,8 +614,8 @@
             background-color: var(--primary-color);
             color: white;
             border-color: var(--primary-color);
-            max-width: fit-content;
-            text-align: right;
+            max-width: 50%;
+            text-align: left;
         }
 
         .message.insight {
@@ -449,23 +633,60 @@
         }
 
         .message.insight .message-text {
-            background-color: #e3f2fd;
-            color: #1976d2;
-            border-color: #bbdefb;
-            max-width: fit-content;
-            text-align: right;
+            background-color: var(--insight-bg);
+            color: var(--insight-text);
+            border-color: var(--insight-border);
+            max-width: 50%;
+            text-align: left;
+        }
+
+        /* 回到顶部按钮 */
+        .back-to-top {
+            position: fixed;
+            bottom: 140px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            font-size: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .back-to-top:hover {
+            background-color: #3a8ee6;
+            transform: scale(1.05);
         }
 
         .footer {
-            height: var(--footer-height);
+            height: auto;
+            min-height: 80px;
+            max-height: 150px;
             background-color: var(--card-bg);
             border-top: 1px solid var(--border-color);
-            padding: 15px 20px;
+            padding: 12px 20px;
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
             z-index: 1000;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .input-area {
@@ -566,6 +787,126 @@
                 grid-template-columns: 80px 1fr 80px;
             }
         }
+
+        /* 分页样式 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-page {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            min-width: 36px;
+        }
+
+        .btn-page:hover {
+            background-color: var(--background-color);
+        }
+
+        .btn-active {
+            background-color: var(--primary-color);
+            color: white;
+            border: 1px solid var(--primary-color);
+        }
+
+        /* 修复底部布局问题 */
+        .content {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            margin-top: calc(var(--header-height) + var(--controls-height));
+            margin-bottom: var(--footer-height);
+            height: calc(100vh - var(--header-height) - var(--controls-height) - var(--footer-height));
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 20px; /* Reduced padding to avoid excessive spacing */
+            height: 100%;
+        }
+
+        .footer {
+            height: var(--footer-height);
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            padding: 10px 20px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .input-box {
+            flex: 1;
+            resize: none;
+            min-height: 60px;
+        }
+
+        .stats {
+            text-align: left;
+            padding: 0;
+            border-top: none;
+            margin: 0;
+        }
+
+        /* 防止最后一条记录被输入框遮挡 - reduced from 160px to proper spacing */
+        .chat-messages {
+            padding-bottom: 80px; /* Reduced from 160px to avoid over-padding */
+        }
+
+        /* 布局修正：去掉输入区滚动条，缩小消息区与输入区的空隙 */
+        .content {
+            margin-bottom: 0;
+            height: calc(100vh - var(--header-height) - var(--controls-height) - var(--footer-height));
+            padding-bottom: 0;
+        }
+
+        .chat-container {
+            padding-bottom: 0;
+        }
+
+        .chat-messages {
+            padding-bottom: 2px;
+        }
+
+        .footer {
+            overflow-y: hidden;
+            overflow-x: hidden;
+        }
+
+        .footer-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .footer .pagination {
+            margin: 0;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -614,12 +955,17 @@
         </div>
     </div>
 
+    <button class="back-to-top" id="backToTop" onclick="scrollToTop()" title="回到顶部">↑</button>
+
     <div class="footer">
         <div class="input-area">
             <textarea id="inputBox" class="input-box" placeholder="输入要插入的记忆内容..."></textarea>
             <button class="insert-btn" onclick="insertMemory()">插入记忆</button>
         </div>
-        <div class="stats" id="stats">共 0 条信息（记忆 0 条 + 精华 0 条）</div>
+        <div class="footer-bottom">
+            <div class="stats" id="stats">共 0 条信息（记忆 0 条 + 精华 0 条）</div>
+            <div id="pagination" class="pagination" style="display: none;"></div>
+        </div>
     </div>
 
     <div id="notification" class="notification"></div>
@@ -688,21 +1034,33 @@
             }
         }
 
-        // 格式化时间
-        function formatTime(timestamp) {
-            if (!timestamp) return "未知时间";
+        function extractTimestampFromText(text) {
+            if (!text || typeof text !== 'string') return null;
+            const match = text.match(/\[(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+GMT([+-]\d+)\]/i);
+            if (!match) return null;
+            const iso = `${match[2]}T${match[3]}:00${match[4]}:00`;
+            const ms = Date.parse(iso);
+            return Number.isFinite(ms) ? ms : null;
+        }
 
-            let date;
-            if (typeof timestamp === 'number' || /^\d+$/.test(timestamp)) {
-                const numTimestamp = parseInt(timestamp);
-                // 检查是毫秒还是秒时间戳
-                date = new Date(numTimestamp.toString().length > 10 ? numTimestamp : numTimestamp * 1000);
-            } else {
-                date = new Date(timestamp);
+        function toTimestampMs(timestamp, fallbackText = '') {
+            if (timestamp !== undefined && timestamp !== null && timestamp !== '') {
+                if (typeof timestamp === 'number' || /^\d+$/.test(String(timestamp))) {
+                    const numTimestamp = parseInt(timestamp, 10);
+                    return numTimestamp.toString().length > 10 ? numTimestamp : numTimestamp * 1000;
+                }
+                const parsed = Date.parse(String(timestamp));
+                if (Number.isFinite(parsed)) return parsed;
             }
+            return extractTimestampFromText(fallbackText);
+        }
 
-            if (isNaN(date.getTime())) return timestamp.toString();
-
+        // 格式化时间
+        function formatTime(timestamp, fallbackText = '') {
+            const ms = toTimestampMs(timestamp, fallbackText);
+            if (!ms) return "未知时间";
+            const date = new Date(ms);
+            if (isNaN(date.getTime())) return "未知时间";
             return date.toLocaleString('zh-CN', {
                 year: 'numeric',
                 month: '2-digit',
@@ -710,6 +1068,41 @@
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        }
+
+        // 仅用于前端展示：隐藏原文中的注入头信息，不影响底层存储与模型检索
+        function cleanTextForDisplay(text) {
+            if (!text || typeof text !== 'string') return '';
+            return text
+                .replace(/^\s*(user|assistant)\s*:\s*/i, '')
+                .replace(/\[agents\/tool-images\][^\n\r]*/ig, ' ')
+                .replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig, ' ')
+                .replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, ' ')
+                .replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, '')
+                .replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, ' ')
+                .replace(/(?:^|\s)\[(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+GMT[+-]\d+\]\s*/ig, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function hasRenderableText(memory) {
+            const text = memory?.payload?.text || '';
+            return cleanTextForDisplay(text).length > 0;
+        }
+
+        function getTypeLabel(memType, sourceType) {
+            const normalized = (memType || '').toString().toLowerCase();
+            if (sourceType === 'manual') return '手动';
+            const mapping = {
+                technical: '技术',
+                fact: '事实',
+                decision: '决策',
+                instruction: '规则',
+                experience: '经验',
+                insight: '精华',
+                raw: '原文'
+            };
+            return mapping[normalized] || '未分类';
         }
 
         // 解析范围字符串（如 "1-5" 或 "1,2,3"）
@@ -784,10 +1177,12 @@
                 return;
             }
 
-            // 获取当前显示的有序记忆列表
-            const sortedMemories = [...currentState.allMemories].sort((a, b) => {
-                const timeA = a.payload?.timestamp ? new Date(a.payload.timestamp).getTime() : 0;
-                const timeB = b.payload?.timestamp ? new Date(b.payload.timestamp).getTime() : 0;
+            // 获取当前显示的有序记忆列表（过滤清洗后空文本）
+            const sortedMemories = currentState.allMemories
+                .filter(hasRenderableText)
+                .sort((a, b) => {
+                const timeA = toTimestampMs(a.payload?.timestamp, a.payload?.text || '') || 0;
+                const timeB = toTimestampMs(b.payload?.timestamp, b.payload?.text || '') || 0;
                 return timeB - timeA;
             });
 
@@ -815,21 +1210,28 @@
                 return;
             }
 
-            // 获取当前显示的有序记忆列表
-            const sortedMemories = [...currentState.allMemories].sort((a, b) => {
-                const timeA = a.payload?.timestamp ? new Date(a.payload.timestamp).getTime() : 0;
-                const timeB = b.payload?.timestamp ? new Date(b.payload.timestamp).getTime() : 0;
+            // 获取当前显示的有序记忆列表（过滤清洗后空文本）
+            const sortedMemories = currentState.allMemories
+                .filter(hasRenderableText)
+                .sort((a, b) => {
+                const timeA = toTimestampMs(a.payload?.timestamp, a.payload?.text || '') || 0;
+                const timeB = toTimestampMs(b.payload?.timestamp, b.payload?.text || '') || 0;
                 return timeB - timeA;
             });
 
+            // 计算当前页的起始和结束索引
+            const startIndex = (CONFIG.currentPage - 1) * CONFIG.pageSize;
+            const endIndex = Math.min(startIndex + CONFIG.pageSize, sortedMemories.length);
+            const currentPageMemories = sortedMemories.slice(startIndex, endIndex);
+
             try {
-                // 删除所有当前记忆
-                for (const memory of sortedMemories) {
+                // 删除当前页的记忆
+                for (const memory of currentPageMemories) {
                     await apiRequest(`/api/memory/${memory.id}`, null, 'DELETE');
                 }
 
                 loadMemories(); // 重新加载
-                showNotification(`成功删除 ${sortedMemories.length} 条记忆`);
+                showNotification(`成功删除 ${currentPageMemories.length} 条记忆`);
             } catch (err) {
                 showNotification(`删除本页失败: ${err.message}`, true);
             }
@@ -842,20 +1244,26 @@
 
             if (!query) {
                 // 如果搜索框为空，显示所有记忆
+                CONFIG.currentPage = 1; // 重置到第一页
+                currentState.filteredMemories = [];
                 displayMemories(currentState.allMemories);
+                currentState.searchQuery = ''; // 清空搜索查询
                 return;
             }
 
             // 过滤包含搜索词的记忆
             const filteredMemories = currentState.allMemories.filter(memory => {
-                const text = memory.payload?.text || '';
+                const text = cleanTextForDisplay(memory.payload?.text || '');
                 return text.toLowerCase().includes(query);
             });
 
+            CONFIG.currentPage = 1; // 搜索时重置到第一页
+            currentState.filteredMemories = filteredMemories;
+            currentState.searchQuery = query; // 保存搜索查询
             displayMemories(filteredMemories, query);
         }
 
-        // 显示记忆
+        // 显示记忆（带分页功能）
         function displayMemories(memories, searchQuery = '') {
             const chatMessages = document.getElementById('chatMessages');
             const loading = document.getElementById('loading');
@@ -864,40 +1272,61 @@
             loading.style.display = 'none';
             error.style.display = 'none';
 
-            if (!memories || memories.length === 0) {
+            const visibleMemories = (memories || []).filter(hasRenderableText);
+
+            if (!visibleMemories || visibleMemories.length === 0) {
+                currentState.filteredMemories = searchQuery ? [] : currentState.filteredMemories;
                 chatMessages.innerHTML = '<div class="message-index-left"></div><div style="grid-column: 2; text-align: center; padding: 40px; color: var(--text-secondary);">暂无记忆记录</div><div class="message-index-right"></div>';
                 updateStats([]);
+                renderPagination(1, 1); // 显示第1页，总共1页
                 return;
             }
 
             // 按时间排序（最新的在前）
-            const sortedMemories = [...memories].sort((a, b) => {
-                const timeA = a.payload?.timestamp ? new Date(a.payload.timestamp).getTime() : 0;
-                const timeB = b.payload?.timestamp ? new Date(b.payload.timestamp).getTime() : 0;
+            const sortedMemories = [...visibleMemories].sort((a, b) => {
+                const timeA = toTimestampMs(a.payload?.timestamp, a.payload?.text || '') || 0;
+                const timeB = toTimestampMs(b.payload?.timestamp, b.payload?.text || '') || 0;
                 return timeB - timeA;
             });
 
+            // 计算总页数
+            const totalPages = Math.ceil(sortedMemories.length / CONFIG.pageSize);
+            const startIndex = (CONFIG.currentPage - 1) * CONFIG.pageSize;
+            const endIndex = Math.min(startIndex + CONFIG.pageSize, sortedMemories.length);
+            const pageMemories = sortedMemories.slice(startIndex, endIndex);
+
             // 渲染消息，包含左右序号
             let htmlContent = '';
-            sortedMemories.forEach((memory, index) => {
+            pageMemories.forEach((memory, index) => {
+                // 计算在整个记忆列表中的真实索引
+                const globalIndex = startIndex + index;
                 const payload = memory.payload || {};
-                const role = payload.role || 'assistant';
+                const role = typeof payload.role === 'string' ? payload.role.trim().toLowerCase() : '';
                 const memType = payload.mem_type || 'fact';
-                const formattedTime = formatTime(payload.timestamp);
+                const sourceType = payload.source_type || 'raw';
+                const formattedTime = formatTime(payload.timestamp, payload.text || '');
+                const canRefine = payload.processed === false;
+                const showType = sourceType === 'insight' || sourceType === 'manual' || memType === 'insight';
+                const typeLabel = getTypeLabel(memType, sourceType);
 
                 // 高亮搜索词
-                let displayText = escapeHtml(payload.text || '');
+                const displayRawText = cleanTextForDisplay(payload.text || '');
+                let displayText = escapeHtml(displayRawText);
                 if (searchQuery) {
-                    const regex = new RegExp(`(${searchQuery})`, 'gi');
+                    const regex = new RegExp(`(${escapeRegExp(searchQuery)})`, 'gi');
                     displayText = displayText.replace(regex, '<span class="highlight">$1</span>');
                 }
 
                 let avatar, name, className;
 
-                if (memType === 'insight') {
+                if (sourceType === 'insight' || sourceType === 'manual' || memType === 'insight') {
                     avatar = '💡';
                     name = '精华';
                     className = 'insight';
+                } else if (!role || role === 'null' || role === 'undefined') {
+                    avatar = '📝';
+                    name = '记录';
+                    className = 'assistant';
                 } else if (role === 'user') {
                     avatar = '👤';
                     name = '用户';
@@ -908,28 +1337,44 @@
                     className = 'assistant';
                 }
 
+                // 获取 tags
+                const tags = payload.tags || [];
+                const tagsHtml = tags.length > 0
+                    ? `<div class="message-tags">${tags.slice(0, 5).map(tag => `<span class="message-tag">${escapeHtml(tag)}</span>`).join('')}</div>`
+                    : '';
+
+                // 序号只显示在有数据的一侧：助手在左侧，用户/精华在右侧
+                const indexLeft = className === 'assistant' ? `<div class="message-index-left"><span class="index-num">${globalIndex + 1}</span></div>` : '<div class="message-index-left hidden"></div>';
+                const indexRight = className !== 'assistant' ? `<div class="message-index-right"><span class="index-num">${globalIndex + 1}</span></div>` : '<div class="message-index-right hidden"></div>';
+                const refineButtonHtml = canRefine
+                    ? `<button class="action-btn" title="重新梳理" onclick="refineMessage('${memory.id}', '${escapeJsString(payload.text || '')}', '${escapeJsString(role)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h16.5a1.5 1.5 0 0 0 0-3H3a2 2 0 0 0 0 4h16.5a1.5 1.5 0 0 1 0 3H3a2 2 0 0 1 0-4Z"></path><path d="M3 19h13.5a1.5 1.5 0 0 0 0-3H3a2 2 0 0 0 0 4h13.5a1.5 1.5 0 0 1 0 3H3a2 2 0 0 1 0-4Z"></path></svg></button>`
+                    : '';
+
                 htmlContent += `
-                    <div class="message-index-left">${index + 1}</div>
+                    ${indexLeft}
                     <div class="message ${className}" data-id="${memory.id}">
-                        <div class="message-actions">
-                            <button class="action-btn" title="复制" onclick="copyMessage('${escapeHtml(payload.text || '')}')">⧉</button>
-                            <button class="action-btn" title="删除" onclick="deleteSingleMessage('${memory.id}', '${name}')">×</button>
-                        </div>
                         <div class="message-avatar">${avatar}</div>
                         <div class="message-content">
                             <div class="message-header">
                                 <span class="message-name">${name}</span>
+                                ${showType ? `<span class="message-type">${typeLabel}</span>` : ''}
                                 <span class="message-time">${formattedTime}</span>
                             </div>
-                            <div class="message-text">${displayText}</div>
+                            ${tagsHtml}
+                            <div class="message-text"><div class="message-actions"><button class="action-btn" title="复制" onclick="copyMessage('${escapeJsString(displayRawText)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>${refineButtonHtml}<button class="action-btn" title="删除" onclick="deleteSingleMessage('${memory.id}', '${name}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div><div class="message-text-content">${displayText}</div></div>
                         </div>
                     </div>
-                    <div class="message-index-right">${index + 1}</div>
+                    ${indexRight}
                 `;
             });
 
             chatMessages.innerHTML = htmlContent;
-            updateStats(memories);
+
+            // 添加分页控件
+            renderPagination(CONFIG.currentPage, totalPages);
+
+            // 更新统计信息，使用完整的记忆列表
+            updateStats(sortedMemories);
         }
 
         // 删除单条消息
@@ -944,6 +1389,33 @@
                 showNotification('记忆删除成功');
             } catch (err) {
                 showNotification(`删除记忆失败: ${err.message}`, true);
+            }
+        }
+
+        // 重新梳理消息
+        async function refineMessage(id, text, role) {
+            if (!confirm('确定要重新梳理这条记忆吗？这将用AI提炼后的内容替换原文。')) {
+                return;
+            }
+
+            try {
+                showNotification('正在重新梳理，请稍候...');
+
+                // 调用后端的提炼功能
+                const response = await apiRequest('/api/refine', {
+                    id: id,
+                    text: text,
+                    role: role
+                }, 'POST');
+
+                if (response.ok) {
+                    loadMemories(); // 重新加载
+                    showNotification('记忆重新梳理成功！');
+                } else {
+                    showNotification(`重新梳理失败: ${response.reason || '未知错误'}`, true);
+                }
+            } catch (err) {
+                showNotification(`重新梳理失败: ${err.message}`, true);
             }
         }
 
@@ -968,10 +1440,107 @@
         function updateStats(memories) {
             const stats = document.getElementById('stats');
             const total = memories.length || 0;
-            const facts = memories.filter(m => m.payload?.mem_type === 'fact').length || 0;
-            const insights = memories.filter(m => m.payload?.mem_type === 'insight').length || 0;
+            const insights = memories.filter(m => {
+                const payload = m.payload || {};
+                return payload.source_type === 'insight' || payload.source_type === 'manual' || payload.mem_type === 'insight';
+            }).length || 0;
+            const facts = total - insights;
 
             stats.textContent = `共 ${total} 条信息（记忆 ${facts} 条 + 精华 ${insights} 条）`;
+        }
+
+        // 渲染分页控件
+        function renderPagination(currentPage, totalPages) {
+            const paginationContainer = document.getElementById('pagination');
+            if (!paginationContainer) return;
+
+            // 清空当前分页控件
+            paginationContainer.innerHTML = '';
+
+            paginationContainer.style.display = 'flex';
+
+            // 上一页按钮
+            const prevButton = document.createElement('button');
+            prevButton.className = 'btn btn-secondary';
+            prevButton.textContent = '上一页';
+            prevButton.disabled = currentPage <= 1;
+            prevButton.onclick = () => goToPage(Math.max(1, currentPage - 1));
+            paginationContainer.appendChild(prevButton);
+
+            // 页码按钮 - 显示当前页及前后各2页
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            // 首页
+            if (startPage > 1) {
+                const firstPageBtn = document.createElement('button');
+                firstPageBtn.className = 'btn btn-page';
+                firstPageBtn.textContent = '1';
+                firstPageBtn.onclick = () => goToPage(1);
+                paginationContainer.appendChild(firstPageBtn);
+
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.style.margin = '0 5px';
+                    paginationContainer.appendChild(ellipsis);
+                }
+            }
+
+            // 显示当前页及附近页
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `btn ${i === currentPage ? 'btn-active' : 'btn-page'}`;
+                pageBtn.textContent = i;
+                pageBtn.onclick = () => goToPage(i);
+                paginationContainer.appendChild(pageBtn);
+            }
+
+            // 末页
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.style.margin = '0 5px';
+                    paginationContainer.appendChild(ellipsis);
+                }
+
+                const lastPageBtn = document.createElement('button');
+                lastPageBtn.className = 'btn btn-page';
+                lastPageBtn.textContent = totalPages;
+                lastPageBtn.onclick = () => goToPage(totalPages);
+                paginationContainer.appendChild(lastPageBtn);
+            }
+
+            // 下一页按钮
+            const nextButton = document.createElement('button');
+            nextButton.className = 'btn btn-secondary';
+            nextButton.textContent = '下一页';
+            nextButton.disabled = currentPage >= totalPages;
+            nextButton.onclick = () => goToPage(Math.min(totalPages, currentPage + 1));
+            paginationContainer.appendChild(nextButton);
+
+            // 页码信息
+            const pageInfo = document.createElement('span');
+            pageInfo.textContent = `第 ${currentPage} 页，共 ${totalPages} 页`;
+            pageInfo.style.margin = '0 10px';
+            paginationContainer.appendChild(pageInfo);
+        }
+
+        // 跳转到指定页
+        function goToPage(page) {
+            const source = (currentState.searchQuery && currentState.searchQuery.trim())
+                ? currentState.filteredMemories
+                : currentState.allMemories;
+            const totalPages = Math.max(1, Math.ceil((source?.length || 0) / CONFIG.pageSize));
+            CONFIG.currentPage = Math.max(1, Math.min(page, totalPages));
+
+            if (currentState.searchQuery && currentState.searchQuery.trim()) {
+                // 如果有搜索查询，需要重新搜索并分页
+                searchMemories();
+            } else {
+                displayMemories(currentState.allMemories);
+            }
         }
 
         // 转义HTML
@@ -982,6 +1551,22 @@
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/\n/g, "<br>");
+        }
+
+        // 转义正则特殊字符，避免搜索词构造 RegExp 报错
+        function escapeRegExp(text) {
+            if (typeof text !== 'string') return '';
+            return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // 转义 JS 字符串，避免 onclick 参数被引号/换行打断
+        function escapeJsString(text) {
+            if (typeof text !== 'string') return '';
+            return text
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\r/g, '\\r')
+                .replace(/\n/g, '\\n');
         }
 
         // API请求
@@ -1021,14 +1606,18 @@
             loading.style.display = 'block';
             error.style.display = 'none';
 
+            // 重置到第一页
+            CONFIG.currentPage = 1;
+
             try {
                 const response = await apiRequest('/api/memory');
-                currentState.allMemories = response.memories || [];
+                currentState.allMemories = (response.memories || []).filter(hasRenderableText);
 
                 // 如果当前有搜索查询，保持搜索状态
                 if (searchBox && searchBox.value.trim()) {
                     searchMemories();
                 } else {
+                    currentState.searchQuery = ''; // 清空搜索查询
                     displayMemories(currentState.allMemories);
                 }
             } catch (err) {
@@ -1075,17 +1664,23 @@
             }
 
             try {
+                // 向后端请求插入记忆
                 const response = await apiRequest('/api/memory', {
                     text: text,
-                    type: 'insight',
-                    role: 'assistant'
+                    type: 'insight',  // 插入的记忆类型为精华
+                    role: 'user',     // 手动插入的记忆视为用户类型
+                    source_type: 'manual'
                 }, 'POST');
 
-                showNotification(`记忆插入成功！ID: ${response.id}`);
+                showNotification(`记忆插入成功！ID: ${response.id}, 关键词: ${(response.keywords || []).join(', ')}`);
                 inputBox.value = '';
                 loadMemories();
             } catch (err) {
-                showNotification(`插入记忆失败: ${err.message}`, true);
+                if (err.message.includes('记忆内容重复')) {
+                    showNotification(`记忆重复，未插入: ${err.message}`, true);
+                } else {
+                    showNotification(`插入记忆失败: ${err.message}`, true);
+                }
             }
         }
 
@@ -1133,6 +1728,35 @@
                 }
             }
         });
+
+        // 回到顶部功能
+        function scrollToTop() {
+            const content = document.querySelector('.content');
+            content.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        // 监听滚动事件，控制回到顶部按钮的显示
+        function initScrollListener() {
+            const content = document.querySelector('.content');
+            const backToTopButton = document.getElementById('backToTop');
+
+            if (content && backToTopButton) {
+                content.addEventListener('scroll', function() {
+                    if (this.scrollTop > 300) {
+                        backToTopButton.classList.add('visible');
+                    } else {
+                        backToTopButton.classList.remove('visible');
+                    }
+                });
+            }
+        }
+
+        // 页面加载后初始化
+        window.addEventListener('load', initScrollListener);
+        document.addEventListener('DOMContentLoaded', initScrollListener);
     </script>
 </body>
 </html>

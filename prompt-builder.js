@@ -11,6 +11,21 @@ function clip(text, maxLen) {
   return t.length > maxLen ? t.slice(0, maxLen) + "…" : t;
 }
 
+function cleanInjectedMemoryText(text) {
+  return (text ?? "")
+    .toString()
+    .replace(/^\s*(user|assistant)\s*:\s*/i, "")
+    .replace(/\[agents\/tool-images\][^\n\r]*/ig, " ")
+    .replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*```(?:json)?[\s\S]*?```/ig, " ")
+    .replace(/(?:sender|conversation\s*info)\s*\(untrusted metadata\)\s*:\s*/ig, " ")
+    .replace(/^\s*(?:\[\[[a-z0-9_:-]+\]\]\s*)+/ig, "")
+    .replace(/\s*\[\[[a-z0-9_:-]+\]\]\s*/ig, " ")
+    // 宽匹配时间头：只要中括号里出现 YYYY-MM-DD 就清掉
+    .replace(/(?:^|\s)\[[^\]]*\d{4}-\d{2}-\d{2}[^\]]*\]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function extractText(content) {
   if (content == null) return "";
   if (typeof content === "string") return content;
@@ -60,11 +75,13 @@ export function formatPromptBlock(result, opts = {}) {
   lines.push("记忆类型说明：");
   lines.push("- `[记忆]`：用户或者助手的聊天记录原文");
   lines.push("- `[精华]`：用户手动输入的重要信息，或 AI 自动总结的洞察");
+  lines.push("- 后台管理页面：[http://localhost:3001/](http://localhost:3001/)");
+  lines.push("- 多代理监控看板：[http://localhost:3000/](http://localhost:3000/)");
   lines.push("# 匹配的记忆");
   lines.push("");
 
   for (const item of list) {
-    const text = safeTrim(item?.memory_value);
+    const text = cleanInjectedMemoryText(safeTrim(item?.memory_value));
     if (!text) continue;
 
     // 原始字段
