@@ -1,11 +1,20 @@
 # handoff.md
 
 ## 最后更新时间
-- 日期：2026-03-04（第二阶段：统一清洗模块）
+- 日期：2026-03-04（新会话噪音召回拦截 + 目录清理）
 - 更新者：Codex
 - 仓库：`C:\Users\oadan\openclaw_plugins\memory-qdrant`
 
 ## 本轮改动（按时间）
+- 针对用户日志反馈“新会话提示污染召回关键词”修复：
+  - `index.js`：
+    - `shouldSkipRecall` 新增 `isSessionStartupPrompt` 判定。
+    - 命中 `A new session was started via /new or /reset` / `Session Startup sequence` / `/new|/reset` 的启动提示时，直接跳过召回。
+  - 结果：`[MEMORY DEBUG]` 不再被会话启动指令文本主导，避免出现 `the/model/session/default...` 这类噪音关键词。
+  - 语法检查：`node --check index.js` 通过。
+- 物理目录清理（不改 nssm 核心服务文件名与职责）：
+  - 删除：`.claude/`、`.vscode/`、`claude-project.json`。
+  - 保留：`server.js`、`auto_summary/auto_summary.py`、`nssm/`、`Qdrant/`、核心插件代码与服务脚本。
 - 第二阶段整理（用户确认执行）：
   - 新增统一清洗模块：`text-cleaner.js`
     - 提供 `sanitizeText`、`stripProtocolMarkers`、`isProtocolOnly`，统一处理：
@@ -321,6 +330,7 @@
   - Qdrant 预期地址：`http://localhost:6333`
   - 管理端 API/UI 预期地址：`http://localhost:3001/`
 - 管理页：
+  - 新会话启动提示（`/new`/`/reset`）不会再触发记忆召回，日志噪音已下降。
   - 后端 JS 清洗规则已进入“单模块复用”状态，`index/qdrant/server/prompt-builder` 口径已对齐。
   - 仓库已完成一次“去脏”整理：不再把 `node_modules` 与运行日志作为版本化内容，后续提交噪音会明显降低。
   - 审查项 1/2/3 已落地：`auto_summary` 重复捞取风险已降低；插件配置面板与代码默认值更一致；采集清洗不再宽删“任意含日期方括号”文本。
@@ -399,6 +409,7 @@
 - 用户确认：按审查报告中的 1/2/3 三项直接给出补丁。
 - 用户确认：在保证现有功能前提下执行一次“大整理/大清洗”；nssm 服务相关核心文件名和功能不变。
 - 用户确认：继续执行“第二阶段整理”，对清洗逻辑做统一模块化改造。
+- 用户新增要求：日志与目录“看起来乱”需要立即收口（先拦启动噪音，再做物理清理）。
 
 ## 未解决问题 / 风险
 - 当前工作区存在大量历史未提交改动，操作时需避免误回滚。
@@ -428,6 +439,7 @@
 - `auto_summary` 仍使用“写入 `processed=\"processing\"` 后再汇总”的软锁方案；若未来出现异常退出，可能留下处理中状态，需要补“超时回收”策略。
 - 由于本次移除了大量历史误追踪文件（`node_modules`），首次推送变更体量较大；需关注远端仓库接收耗时。
 - Python 侧 `auto_summary.py` 仍是独立清洗实现（语言不同未与 JS 共用模块）；若新增新型脏头，需同步更新两侧。
+- 若 OpenClaw 宿主未来改动会话启动提示文案，`isSessionStartupPrompt` 需同步补充匹配规则。
 
 ## 下一步
 - 下一次要继续开发时：
@@ -468,6 +480,7 @@
      - 回归审查项 3：输入正常方括号日期文本（非系统时间头）后，确认正文不会被误清理。
      - 回归仓库清洁度：`git status` 仅出现真实代码/文档改动，不再出现 `node_modules` 与运行日志噪音。
      - 回归统一清洗模块：对 `index/qdrant/server/prompt-builder` 四条链路输入同一脏样本，确认输出一致且符合各自宽/窄策略。
+     - 回归新会话流程：执行 `/new` 后观察一次日志，确认不再出现启动提示触发的关键词召回。
      - 回归总结节奏：`auto_summary` 每 2 小时按批次（最多 20 条）生成 1 条综合 insight，而非逐条生成。
   6. 在同一轮更新本文件。
 
@@ -538,6 +551,9 @@ git ls-files auto_summary/*.log
 
 # 本地快速检查统一清洗模块接入点
 rg -n "sanitizeText\\(|text-cleaner\\.js|isProtocolOnly" index.js qdrant.js server.js prompt-builder.js text-cleaner.js
+
+# 本地快速检查新会话提示拦截
+rg -n "isSessionStartupPrompt|A new session was started via /new or /reset|Session Startup sequence" index.js
 
 # 升级后重打宿主显示层补丁（仅隐藏显示，不改模型输入）
 powershell -NoProfile -ExecutionPolicy Bypass -File .\apply-openclaw-display-mask.ps1

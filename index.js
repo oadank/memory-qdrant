@@ -112,7 +112,18 @@ function shouldStore(text, role, filterRules, debug = false) {
 function shouldSkipRecall(prompt, cfg) {
   if (!cfg.recallEnabled) return true;
   if (!prompt || prompt.trim().length < 3) return true;
+  if (isSessionStartupPrompt(prompt)) return true;
   return false;
+}
+
+function isSessionStartupPrompt(text) {
+  const s = (text ?? "").toString();
+  if (!s) return false;
+  return (
+    /A new session was started via\s*\/new\s*or\s*\/reset/i.test(s) ||
+    /Session Startup sequence/i.test(s) ||
+    /\/new|\/reset/i.test(s)
+  );
 }
 
 function hasImageContent(content) {
