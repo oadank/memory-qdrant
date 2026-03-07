@@ -1,0 +1,67 @@
+# OpenClaw 三层记忆服务
+# 使用：docker compose up -d
+
+services:
+  # Qdrant 向量数据库
+  qdrant:
+    image: qdrant/qdrant:v1.12.0
+    container_name: memory-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL + Apache AGE 知识图谱
+  postgres:
+    image: apache/age:release_PG15_1.6.0
+    container_name: memory-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: openclaw
+      POSTGRES_PASSWORD: openclaw123
+      POSTGRES_DB: jarvis_memory
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openclaw"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Memory Server (原生 Node.js HTTP 服务器)
+  memory-server:
+    build:
+      context: ./server
+      dockerfile: docker/Dockerfile
+    container_name: memory-server
+    ports:
+      - "7777:7777"
+    environment:
+      OPENCLAW_MEMORY_TIER: full
+      MEMORY_AUTH_TOKEN: clawx-memory-token
+      QDRANT_URL: http://qdrant:6333
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: openclaw
+      PGPASSWORD: openclaw123
+      PGDATABASE: jarvis_memory
+      AGE_GRAPH: agent_memory
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+  postgres_data:
