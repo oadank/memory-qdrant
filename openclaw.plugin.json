@@ -1,66 +1,24 @@
 {
-  "id": "memory-qdrant",
-  "name": "memory-qdrant",
-  "version": "0.4.0",
+  "id": "openclaw_qdrant_age_server",
+  "name": "三层记忆插件",
+  "version": "2.0.0",
+  "description": "OpenClaw 三层记忆架构插件 - 纯血极简版 (SQLite + Qdrant + AGE)",
   "main": "index.js",
   "type": "module",
   "kind": "lifecycle",
   "configSchema": {
     "type": "object",
     "properties": {
+      "debug": { "type": "boolean", "default": false },
+      "memoryServerUrl": { "type": "string", "default": "http://localhost:7777", "description": "memory-server 地址" },
+      "qdrantUrl": { "type": "string", "default": "http://localhost:6333", "description": "Qdrant 管理地址 (6333)" },
+      "qdrantGrpcPort": { "type": "number", "default": 6334, "description": "Qdrant gRPC 端口 (6334)" },
+      "pgPort": { "type": "number", "default": 5432, "description": "PostgreSQL/AGE 端口 (5432)" },
+      "collection": { "type": "string", "default": "openclaw_memories" },
+      "authToken": { "type": "string", "default": "clawx-memory-token" },
       "recallEnabled": { "type": "boolean", "default": true },
-      "disableRecallOnImage": { "type": "boolean", "default": false },
       "addEnabled": { "type": "boolean", "default": true },
-      "debug": { "type": "boolean", "default": true },
-
-      "qdrantUrl": { "type": "string", "default": "http://127.0.0.1:6333" },
-      "collection": { "type": "string", "default": "agent_memory" },
-
-      "embeddingProvider": { "type": "string", "default": "ollama" },
-      "ollamaUrl": { "type": "string", "default": "http://127.0.0.1:11434" },
-      "embeddingModel": { "type": "string", "default": "bge-m3" },
-
-      "memoryLimitNumber": { "type": "number", "default": 3 },
-      "denseLimit": { "type": "number", "default": 60 },
-
-      "sparseEnabled": { "type": "boolean", "default": true },
-      "sparseCandidateLimit": { "type": "number", "default": 240 },
-      "sparseLimit": { "type": "number", "default": 80 },
-
-      "keywordMin": { "type": "number", "default": 8 },
-      "keywordTarget": { "type": "number", "default": 12 },
-      "maxKeywords": { "type": "number", "default": 15 },
-      "kwMinHits": { "type": "number", "default": 2 },
-      "kwMinHitsShort": { "type": "number", "default": 1 },
-
-      "wDense": { "type": "number", "default": 1.0 },
-      "wKw": { "type": "number", "default": 0.25 },
-      "wRecency": { "type": "number", "default": 0.15 },
-      "wInsight": { "type": "number", "default": 0.10 },
-      "wRole": { "type": "number", "default": 0.05 },
-      "recencyHalfLifeHours": { "type": "number", "default": 72 },
-
-      "cleanMaxLen": { "type": "number", "default": 600 },
-      "minCaptureChars": { "type": "number", "default": 12 },
-
-      "throttleMs": { "type": "number", "default": 800 },
-      "captureStrategy": { "type": "string", "default": "last_turn" },
-      "useLLMFilter": { "type": "boolean", "default": true },
-      "filterRules": {
-        "type": "object",
-        "default": {}
-      },
-
-      "includeAssistant": { "type": "boolean", "default": true },
-      "maxMessageChars": { "type": "number", "default": 2000 },
-
-      "extraStopWords": { "type": "array", "items": { "type": "string" }, "default": [] },
-      "badQueryTokens": { "type": "array", "items": { "type": "string" }, "default": [] },
-
-      "dedupEnabled": { "type": "boolean", "default": true },
-      "dedupLookbackLimit": { "type": "number", "default": 1 },
-
-      "tags": { "type": "array", "items": { "type": "string" }, "default": [] }
+      "topK": { "type": "number", "default": 5 }
     }
   }
 }

@@ -1,307 +1,132 @@
-# 🧠 Memory Qdrant Plugin for OpenClaw
+# OpenClaw 三层记忆插件
 
-一个基于 **Qdrant** 向量数据库的 OpenClaw 记忆插件，自动为智能体注入长期记忆，支持对话存储、语义检索、记忆删除与总结。
-🧩 本插件由社区开发，完美适配 OpenClaw 生命周期钩子，让智能体拥有"记性"。
-
-👉 **项目地址**：[https://github.com/oadank/memory-qdrant](https://github.com/oadank/memory-qdrant)
+**版本**: 2.0.0  
+**架构**: SQLite + Qdrant + PostgreSQL/AGE (Full Tier)
 
 ---
 
-## 📁 目录结构
+## 🚀 快速开始
 
-```
-memory-qdrant/
-├── qdrant/                 # Qdrant 数据库核心文件
-│   └── qdrant.exe          # Qdrant 可执行文件（已内置）
-├── nssm/                   # NSSM (Non-Sucking Service Manager)
-│   └── nssm.exe            # 用于将 Qdrant 注册为 Windows 服务
-├── frontend/               # 前端管理界面
-│   └── memory-manager-new.html  # 现代化记忆管理界面
-├── auto_summary/           # 自动总结技能模块（Python）
-├── 一键安装所有服务.ps1     # 一键安装全部 3 个服务（推荐）
-├── 一键卸载所有服务.ps1     # 一键卸载全部 3 个服务（推荐）
-├── index.js                # OpenClaw 插件主逻辑
-├── filter-service.js       # AI 模型过滤服务
-├── server.js               # 前端管理界面服务器
-├── package.json            # Node.js 依赖配置
-├── openclaw.plugin.json    # 插件元数据
-└── README.md               # 本文档
-```
+### 1. 安装依赖
 
----
-
-## 🧩 核心依赖说明
-
-| 组件 | 说明 |
-|------|------|
-| **Qdrant** | 向量数据库，所有记忆以向量形式存储。`qdrant.exe` 已内置在 `qdrant/` 文件夹中，无需额外下载。 |
-| **NSSM** | Windows 服务管理器，用于将 Qdrant 注册为后台服务。`nssm.exe` 已内置在 `nssm/` 文件夹中，无需额外下载。 |
-| **Node.js** | 插件核心逻辑由 Node.js 实现。**需自行安装 Node.js 环境**（推荐 v18 或更高版本）。 |
-| **Python** | 自动总结功能需要 Python 环境（需要系统已安装，并写入环境变量即可）。 |
-| **Ollama** | 用于生成向量嵌入和文本总结。需提前安装 Ollama 并拉取以下模型：<br>- 向量模型：`bge-m3:latest`（或其它兼容模型）<br>- 总结模型：`qwen2.5:14b-instruct`（或其它模型，可在配置中修改）<br>- 过滤模型：`qwen2.5:14b-instruct`（用于智能过滤） |
-
----
-
-## 🚀 安装与使用
-
-### 1. 克隆仓库
 ```bash
-git clone https://github.com/oadank/memory-qdrant.git
-cd memory-qdrant
+cd C:\Users\oadan\openclaw_plugins\openclaw_qdrant_age_server
+npm install
 ```
 
-### 2. 安装服务
+### 2. 启动 Docker 服务
 
-#### 方法 A：一键安装所有服务（推荐）
-
-右键点击 `一键安装所有服务.ps1`，选择 **以管理员身份运行**
-
-脚本将自动安装以下 3 个服务：
-| 服务名 | 说明 |
-|--------|------|
-| `QdrantDB` | Qdrant 向量数据库服务 |
-| `MemoryAutoSummary` | 记忆自动总结服务（Python） |
-| `QdrantMemoryManager` | 记忆管理前端服务（Node.js） |
-
-安装完成后访问 `http://localhost:3001` 即可使用前端管理界面。
-
-#### 方法 B：手动安装命令（高级用户）
-
-以管理员身份打开 PowerShell 或 CMD，执行：
-
-```cmd
-REM 1. 安装 Qdrant 数据库服务
-cd C:\Users\oadan\openclaw_plugins\memory-qdrant
-nssm\nssm.exe install QdrantDB "C:\你的路径\qdrant\qdrant.exe"
-nssm\nssm.exe set QdrantDB DisplayName "Qdrant 向量数据库"
-nssm\nssm.exe set QdrantDB Description "Qdrant 向量数据库服务"
-nssm\nssm.exe set QdrantDB Start SERVICE_AUTO_START
-nssm\nssm.exe set QdrantDB AppDirectory "C:\你的路径\qdrant"
-nssm\nssm.exe set QdrantDB ObjectName LocalSystem
-nssm\nssm.exe start QdrantDB
-
-REM 2. 安装记忆管理前端服务
-nssm\nssm.exe install QdrantMemoryManager "C:\你的路径\node.exe" "C:\你的路径\server.js"
-nssm\nssm.exe set QdrantMemoryManager DisplayName "Qdrant 记忆管理器"
-nssm\nssm.exe set QdrantMemoryManager Description "Qdrant 向量记忆管理服务"
-nssm\nssm.exe set QdrantMemoryManager Start SERVICE_AUTO_START
-nssm\nssm.exe set QdrantMemoryManager AppDirectory "C:\你的路径\"
-nssm\nssm.exe set QdrantMemoryManager ObjectName LocalSystem
-nssm\nssm.exe start QdrantMemoryManager
-
-REM 3. 安装自动总结服务
-nssm\nssm.exe install MemoryAutoSummary "C:\你的路径\python.exe" "C:\你的路径\auto_summary\auto_summary.py"
-nssm\nssm.exe set MemoryAutoSummary DisplayName "记忆自动总结服务"
-nssm\nssm.exe set MemoryAutoSummary Description "AI 记忆自动总结服务"
-nssm\nssm.exe set MemoryAutoSummary Start SERVICE_AUTO_START
-nssm\nssm.exe set MemoryAutoSummary AppDirectory "C:\你的路径\auto_summary"
-nssm\nssm.exe set MemoryAutoSummary ObjectName LocalSystem
-nssm\nssm.exe start MemoryAutoSummary
+```bash
+# 确保以下容器运行中
+docker ps | grep memory
+# - memory-server (Port 7777)
+# - openclaw-memory-qdrant (Port 6333, 6334)
+# - openclaw-memory-age (Port 5432)
 ```
 
-> ⚠️ 注意：请将 `C:\你的路径` 替换为实际项目路径
+### 3. 在 OpenClaw 中启用
 
-### 3. 卸载服务
-
-#### 方法 A：一键卸载全部服务（推荐）
-
-右键点击 `一键卸载所有服务.ps1`，选择 **以管理员身份运行**。
-
-#### 方法 B：手动删除服务
-
-```cmd
-nssm\nssm.exe stop <服务名>
-nssm\nssm.exe remove <服务名> confirm
+编辑 `C:\Users\oadan\.openclaw\openclaw.json`:
+```json
+{
+  "plugins": {
+    "paths": [
+      "C:\\Users\\oadan\\openclaw_plugins\\openclaw_qdrant_age_server"
+    ],
+    "allow": ["openclaw_qdrant_age_server"]
+  }
+}
 ```
-
-#### 彻底清除数据
-
-1. 停止并删除所有服务
-2. 删除 `logs/` 目录（日志文件）
-3. 删除 `qdrant/data` 目录（可选，用于清除向量数据）
 
 ---
 
-## ✨ 功能特性
+## 🌐 前端管理界面
 
-- ✅ **自动记忆存储**：用户消息与助手回复自动存入 Qdrant，支持 `raw` 和 `insight` 两种记忆类型。
-   - `raw`：原始对话记录，包括用户输入和助手回复，用于短期记忆和即时检索。
-   - `insight`：由总结功能生成的浓缩记忆，代表长期、高层次的语义信息。
-- 🔍 **语义检索**：基于用户当前输入，检索最相关的历史记忆，并作为上下文注入智能体。
-- 🎯 **检索优先级**：先搜 `insight`（总结记忆），再搜 `assistant` 原始消息，最后搜 `user` 消息，确保答案质量。
-- 🧹 **智能过滤**：
-  - 内置黑名单过滤，避免存储无意义内容（如问候语、指令）。
-  - **AI 模型过滤**：使用本地 LLM 判断消息价值，准确率超过 70%，避免记忆污染。
-  - 异步队列处理，不阻塞对话响应。
-- 📊 **记忆总结**：发送"总结记忆"即可触发异步总结，将多条原始记忆提炼为 `insight`，长期保存。
-   - 支持多主题识别，每个主题独立输出一条精华记忆。
-   - 自动分类标注（偏好/事实/规则/技能/人格特质/经验/错误）。
-- ⚙️ **高度可配置**：所有参数（如阈值、topK、过滤规则）均可通过 `openclaw.json` 配置。
-- 🛡️ **安全过滤**：内置用户黑名单、助手回复黑名单，防止存储敏感或无用信息。
-- 🌐 **现代化前端界面**：提供直观的 Web 界面管理记忆，包括：
-  - 分页浏览记忆内容
-  - 搜索功能（支持关键词高亮）
-  - 复制单条记忆内容
-  - 删除单条、批量或整页记忆
-  - 精华记忆分类显示
-  - 响应式设计，适配不同屏幕尺寸
-  - 现代化通知系统，取代侵入性弹窗
+**访问地址**: 直接用浏览器打开
+```
+C:\Users\oadan\openclaw_plugins\openclaw_qdrant_age_server\frontend\memory-manager-new.html
+```
+
+**功能**:
+- ✅ 查看/搜索所有记忆
+- ✅ 手动添加/删除记忆
+- ✅ 管理 Qdrant 向量数据库
+- ✅ 监控服务状态
 
 ---
 
-## ⚙️ 配置说明
-
-插件支持以下配置项（均在 `config` 对象中设置）：
-
-| 参数 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `qdrantUrl` | string | `http://localhost:6333` | Qdrant 服务地址 |
-| `collection` | string | `agent_memory` | 向量集合名称 |
-| `ollamaUrl` | string | `http://localhost:11434` | Ollama 服务地址（用于生成向量） |
-| `embeddingModel` | string | `bge-m3:latest` | 嵌入模型名称（需 Ollama 支持） |
-| `topK` | integer | `3` | 检索返回的最大记忆条数 |
-| `dedupeThreshold` | number | `0.85` | 去重阈值（暂未使用） |
-| `userId` | string | `claw` | 当前用户的标识 |
-| `sharedUserId` | string | `shared` | 共享记忆的用户 ID（用于 insight） |
-| `fallbackToRaw` | boolean | `true` | 未找到 insight 时是否降级搜索 raw |
-| `summaryModel` | string | `qwen2.5:14b-instruct` | 用于总结的模型 |
-| `summaryMaxRaw` | integer | `100` | 一次总结最多处理多少条原始记忆 |
-| `useLLMFilter` | boolean | `true` | 是否启用 AI 模型过滤 |
-| `filterRules` | object | 见下文 | 过滤规则 |
-
-### `filterRules` 对象
-
-filterRules 是过滤规则，用于控制哪些对话内容不被存储。
-
-| 字段 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `minLength` | integer | `10` | 消息最短长度，小于此值不存储 |
-| `userBlacklist` | array | `["截屏","截图","重启",...]` | 用户消息包含这些关键词时不存储 |
-| `assistantBlacklistPatterns` | array | `["^很高兴见到你","有什么可以帮你的吗",...]` | 助手回复匹配这些正则时不存储 |
-| `deleteKeywords` | array | `["删除最后一条记忆",...]` | 触发删除操作的关键词 |
-| `summaryKeywords` | array | `["总结记忆","总结一下","帮我总结"]` | 触发总结操作的关键词 |
-
----
-
-## 🤖 AI 智能过滤
-
-### 工作原理
-
-1. **快速规则过滤**：先拦截明显无意义的内容（黑名单、系统消息等）
-2. **异步队列处理**：通过规则过滤的消息进入队列，不阻塞对话
-3. **LLM 语义判断**：本地模型分析消息是否包含长期记忆价值
-4. **自动写入**：只有模型判断"值得存储"的消息才会写入 Qdrant
-
-### 过滤模型配置
-
-推荐使用 `qwen2.5:14b-instruct`，理由：
-- 显存占用仅 9GB，适合消费级显卡
-- 推理速度快，5 秒内完成一批判断
-- 指令遵循能力强，JSON 输出稳定
-- 测试准确率约 72%（优于简单规则过滤）
-
-### 关闭模型过滤
-
-如果不想使用模型过滤，可在配置中关闭：
+## 🔧 配置项
 
 ```json
 {
-  "useLLMFilter": false
+  "memoryServerUrl": "http://localhost:7777",
+  "qdrantUrl": "http://localhost:6333",
+  "qdrantGrpcPort": 6334,
+  "pgPort": 5432,
+  "collection": "openclaw_memories",
+  "authToken": "clawx-memory-token",
+  "recallEnabled": true,
+  "addEnabled": true,
+  "topK": 5,
+  "debug": false
 }
 ```
 
-关闭后将使用传统的规则过滤方式。
-
 ---
 
-## 📖 使用方法
-
-### 基本流程
-1. 正确配置到 OpenClaw 并启用后，插件自动工作，并在后台打印相关日志。
-2. 每次对话，用户消息和助手回复都会被存储（除非被过滤规则拦截）。
-3. 下次提问时，插件会自动检索相关记忆并注入上下文。
-
-### 访问前端管理界面
-1. 确保插件服务正在运行
-2. 打开浏览器访问 `http://localhost:3001`
-3. 通过界面进行记忆管理操作：
-   - 浏览和搜索记忆内容
-   - 复制特定记忆内容
-   - 删除单条或多条记忆
-   - 批量操作（支持 "1,2,3" 或 "1-5" 格式）
-   - 查看精华记忆（insight 类型）
-   - 调整每页显示数量
-   - 页面刷新功能
-
-### 记忆管理指令
-- **删除最后一条记忆**：发送"删除最后一条记忆"（或配置中的任意 `deleteKeywords`）。
-- **删除关于某话题的记忆**：发送"删除关于 XXX"（XXX 为话题关键词）。
-- **总结记忆**：发送"总结记忆"，插件将异步处理并生成 insight，稍后可查看结果。
-
-### 检索优先级
-插件按以下顺序检索记忆：
-1. **insight**：由总结生成的长期记忆。
-2. **assistant raw**：助手原始回复。
-3. **user raw**：用户原始消息。
-
-检索结果会经过相似度阈值过滤（默认 0.7），高于阈值的记忆才会被注入。
-
----
-
-## 🧪 高级调优
-
-- **调整相似度阈值**：在 `before_agent_start` 钩子中找到 `const THRESHOLD = 0.7;`，根据需要修改（值越低，召回越多，但可能引入噪音）。
-- **修改检索优先级**：可在代码中自由调整检索顺序。
-- **自定义过滤规则**：直接修改 `filterRules` 配置，或在代码中扩展 `shouldStore` 函数。
-
----
-
-## 📝 示例日志输出
+## 📊 架构说明
 
 ```
-13:42:08 📋 [memory-qdrant] filterRules in use: { ... }
-13:42:10 🧪 insightFilter = {
-  "must": [{ "key": "type", "match": { "value": "insight" } }],
-  "should": [...],
-  "min_should": { "min_count": 1 }
-}
-13:42:10 📊 raw_assistant 候选分数：0.494, 内容："⚙️ 会话已就绪..."
-13:42:10 🔍 未找到高于阈值 0.7 的相关记忆。
-13:42:55 检查模式 "会话已" 是否匹配：true
-13:42:55 过滤：AI 回复匹配黑名单模式 "会话已"
+OpenClaw Agent
+    ↓
+插件 (index.js)
+    ↓ HTTP (axios)
+memory-server (7777)
+    ↓
+┌───────┬────────┬────────┐
+SQLite  Qdrant   PostgreSQL
+        6333/6334  + AGE
+                   5432
 ```
 
 ---
 
-## ❓ 常见问题
+## 🛠️ 常用命令
 
-**Q: 为什么 Qdrant 报错 `invalid type: integer '1', expected struct MinShould`？**
-A: 请确保插件代码中 `min_should` 使用对象格式 `{ min_count: 1 }`，而非数字 `1`。如果已修改但仍有错误，可能是 OpenClaw 加载了旧版插件，请检查插件路径并彻底重启。
+### 查看服务状态
+在 OpenClaw 中输入：
+```
+memory.status
+```
 
-**Q: 为什么助手问候语还会被存储？**
-A: 检查 `assistantBlacklistPatterns` 是否包含"会话已"等模式，并确认过滤函数中的正则匹配已启用（插件日志中应有"检查模式..."输出）。
-
-**Q: 记忆检索不到，总是返回 0 条？**
-A: 可能是相似度阈值过高，尝试降低 `THRESHOLD`；或确保 Qdrant 集合中有数据（可通过前端 `http://localhost:3001` 查看）。
-
-**Q: 一键安装后，Qdrant 服务无法启动？**
-A: 检查端口 6333 是否被占用，或查看 `qdrant/logs/` 下的日志文件。也可手动运行 `qdrant.exe` 测试。
-
-**Q: Anthropic API key 缺失错误怎么办？**
-A: 这是 OpenClaw 内置 slug generator 的错误，不影响核心功能。可在配置中关闭：`"slugGenerator": { "enabled": false }`。
+### 搜索记忆
+```
+memory.search <关键词>
+```
 
 ---
 
-## 🤝 贡献
+## 📝 目录结构
 
-欢迎提交 Issue 和 PR！如果你有新的过滤规则或优化思路，请随时改进。
+```
+openclaw_qdrant_age_server/
+├── index.js                  # 核心插件代码
+├── openclaw.plugin.json      # OpenClaw 配置
+├── package.json              # Node.js 依赖
+├── README.md                 # 说明文档
+└── frontend/
+    └── memory-manager-new.html  # 前端管理界面
+```
 
 ---
 
-## 📄 许可证
+## ⚠️ 注意事项
 
-MIT © 2026 [oadank](https://github.com/oadank)
+1. **必须先启动 Docker 容器** 才能使用插件
+2. **端口不要冲突**: 7777, 6333, 6334, 5432
+3. **定期备份**: Qdrant 和 PostgreSQL 数据卷
 
 ---
 
-🌟 **如果这个插件对你有帮助，请给仓库点个 Star！**
+**最后更新**: 2026-03-07  
+**作者**: 老青鱼 🐟🔥

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qdrant 记忆管理器</title>
+    <title>Qdrant 记忆管理器 v2.0</title>
     <style>
         :root {
             --primary-color: #409eff;
@@ -973,9 +973,9 @@
     <script>
         // 配置信息
         const CONFIG = {
-            apiUrl: "http://localhost:3001",
+            apiUrl: "http://localhost:7777",
             qdrantUrl: "http://localhost:6333",
-            collection: "agent_memory",
+            collection: "openclaw_memories",
             pageSize: 50,
             currentPage: 1
         };
@@ -1192,7 +1192,7 @@
                     const idx = indices[i] - 1; // 用户输入从1开始，数组从0开始
                     if (idx >= 0 && idx < sortedMemories.length) {
                         const memoryId = sortedMemories[idx].id;
-                        await apiRequest(`/api/memory/${memoryId}`, null, 'DELETE');
+                        await apiRequest(`/api/memories/${memoryId}`, null, 'DELETE');
                     }
                 }
 
@@ -1227,7 +1227,7 @@
             try {
                 // 删除当前页的记忆
                 for (const memory of currentPageMemories) {
-                    await apiRequest(`/api/memory/${memory.id}`, null, 'DELETE');
+                    await apiRequest(`/api/memories/${memory.id}`, null, 'DELETE');
                 }
 
                 loadMemories(); // 重新加载
@@ -1384,7 +1384,7 @@
             }
 
             try {
-                await apiRequest(`/api/memory/${id}`, null, 'DELETE');
+                await apiRequest(`/api/memories/${id}`, null, 'DELETE');
                 loadMemories(); // 重新加载
                 showNotification('记忆删除成功');
             } catch (err) {
@@ -1404,7 +1404,7 @@
                 // 调用后端的提炼功能
                 const response = await apiRequest('/api/refine', {
                     id: id,
-                    text: text,
+                    content: text,
                     role: role
                 }, 'POST');
 
@@ -1610,7 +1610,7 @@
             CONFIG.currentPage = 1;
 
             try {
-                const response = await apiRequest('/api/memory');
+                const response = await apiRequest('/api/memories');
                 currentState.allMemories = (response.memories || []).filter(hasRenderableText);
 
                 // 如果当前有搜索查询，保持搜索状态
@@ -1645,7 +1645,7 @@
             }
 
             try {
-                await apiRequest('/api/memory/all', null, 'DELETE');
+                await apiRequest('/api/memories', null, 'DELETE');
                 loadMemories();
                 showNotification('全部记忆删除成功');
             } catch (err) {
@@ -1665,11 +1665,11 @@
 
             try {
                 // 向后端请求插入记忆
-                const response = await apiRequest('/api/memory', {
-                    text: text,
-                    type: 'insight',  // 插入的记忆类型为精华
-                    role: 'user',     // 手动插入的记忆视为用户类型
-                    source_type: 'manual'
+                const response = await apiRequest('/api/memories', {
+                    content: text,
+                    tags: ['manual'],  // 插入的记忆类型为精华
+                    scope: 'user',     // 手动插入的记忆视为用户类型
+                    source: 'explicit'
                 }, 'POST');
 
                 showNotification(`记忆插入成功！ID: ${response.id}, 关键词: ${(response.keywords || []).join(', ')}`);
@@ -1760,3 +1760,4 @@
     </script>
 </body>
 </html>
+

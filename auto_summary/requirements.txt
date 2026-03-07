@@ -1,3 +1,0 @@
-requests
-scikit-learn
-jieba

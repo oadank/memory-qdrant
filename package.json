@@ -1,20 +1,8 @@
 {
-  "name": "memory-qdrant",
-  "version": "0.4.0",
+  "name": "openclaw_qdrant_age_server",
+  "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
   "dependencies": {
-    "@qdrant/js-client-rest": "^1.12.0",
-    "axios": "^1.13.6",
-    "nodejieba": "^3.5.2",
-    "uuid": "^9.0.1",
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "start-server": "node server.js",
-    "check": "echo \"Checking dependencies...\" && npm list"
+    "axios": "^1.6.0"
   }
 }
