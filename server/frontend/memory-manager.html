@@ -29,6 +29,28 @@
             --bubble-user: #3a70d0;
         }
         
+        /* 滚动条暗黑模式适配 */
+        .content-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .content-scroll::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        .content-scroll::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        .content-scroll::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+        
+        [data-theme="dark"] .content-scroll::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        [data-theme="dark"] .content-scroll::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -281,29 +303,39 @@
         .btn-warning { background: var(--warning); color: white; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-small {
-            padding: 4px 8px;
-            font-size: 12px;
-            border-radius: 4px;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            font-size: 16px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid transparent;
         }
         .btn-view { background: var(--primary); color: white; }
-        .btn-view:hover { background: #66b1ff; }
+        .btn-view:hover { background: #66b1ff; transform: scale(1.1); }
         .btn-edit { background: var(--warning); color: white; }
-        .btn-edit:hover { background: #f0b426; }
+        .btn-edit:hover { background: #f0b426; transform: scale(1.1); }
         .btn-delete { background: var(--danger); color: white; }
-        .btn-delete:hover { background: #f78989; }
+        .btn-delete:hover { background: #f78989; transform: scale(1.1); }
         
         /* Chat Bubbles */
         .chat-container { display: flex; flex-direction: column; gap: 15px; }
         .chat-bubble {
             max-width: 70%;
-            padding: 12px 16px;
+            padding: 16px;
             border-radius: 12px;
             position: relative;
             word-wrap: break-word;
             background: var(--bubble-assistant);
             border: 1px solid var(--border);
+            transition: all 0.3s;
+        }
+        .chat-bubble:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .chat-bubble.assistant {
             align-self: flex-start;
@@ -315,7 +347,13 @@
             color: white;
             border-bottom-right-radius: 4px;
         }
-        .chat-bubble.user .bubble-meta { color: rgba(255,255,255,0.8); }
+        .chat-bubble.user .bubble-role { 
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .chat-bubble.user .bubble-time { 
+            color: rgba(255,255,255,0.8);
+        }
         .chat-bubble.user .bubble-actions { 
             background: rgba(255,255,255,0.2);
             border-color: rgba(255,255,255,0.3);
@@ -328,38 +366,75 @@
             background: rgba(255,255,255,0.5);
         }
         
-        .bubble-meta {
-            font-size: 12px;
-            opacity: 0.7;
-            margin-bottom: 6px;
+        /* 新的气泡头部布局 */
+        .bubble-header {
             display: flex;
-            gap: 10px;
             align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
         }
+        
+        .bubble-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .bubble-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
         .bubble-role {
             font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 4px;
-            background: rgba(0,0,0,0.1);
+            font-size: 14px;
+            margin-bottom: 2px;
         }
-        .bubble-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+        
+        .bubble-time {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+        
+        .bubble-text { 
+            font-size: 14px; 
+            line-height: 1.6; 
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
         
         .bubble-actions {
             position: absolute;
-            top: 8px;
-            right: 8px;
+            top: 12px;
+            right: 12px;
             display: flex;
-            gap: 4px;
+            gap: 6px;
             opacity: 0;
-            transition: opacity 0.2s;
+            transition: opacity 0.3s;
             background: var(--card-bg);
-            padding: 4px;
-            border-radius: 4px;
+            padding: 6px;
+            border-radius: 8px;
             border: 1px solid var(--border);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 10;
         }
         
         .chat-bubble:hover .bubble-actions {
             opacity: 1;
+        }
+        
+        /* 防止按钮和文本重叠 */
+        .chat-bubble {
+            padding-top: 50px;
+        }
+        .chat-bubble .bubble-header {
+            margin-top: -34px;
         }
         
         /* Pagination */
@@ -677,12 +752,13 @@
                 const sqliteOk = sqliteRes.ok;
                 updateStatusPill('sqlite', sqliteOk);
                 
-                // 检查 Qdrant
+                // 检查 Qdrant - 通过 memory-server 代理
                 const qdrantRes = await fetch(`${API_BASE}/qdrant/count`, { 
                     method: 'POST',
                     headers: HEADERS
                 }).catch(() => ({ ok: false }));
-                const qdrantOk = qdrantRes.ok;
+                // 只要返回了数据就算正常，不一定是 200
+                const qdrantOk = qdrantRes.ok || (await qdrantRes.clone().json().catch(() => null)) !== null;
                 updateStatusPill('qdrant', qdrantOk);
                 
                 // AGE 暂时默认正常
@@ -790,16 +866,20 @@
                                 const isAssistantReply = tags.includes('assistant_reply');
                                 const role = isUserMessage ? '用户' : (isAssistantReply ? '助手' : '助手');
                                 const timestamp = m.info?.timestamp || new Date(m.created_at || Date.now()).toLocaleString('zh-CN');
+                                const avatar = isUserMessage ? '👤' : '🤖';
                                 return `
                                     <div class="chat-bubble ${isUserMessage ? 'user' : 'assistant'}">
                                         <div class="bubble-actions">
-                                            <button class="btn-small btn-view" onclick="viewDetail('${m.id}', 'sqlite')">查看</button>
-                                            <button class="btn-small btn-edit" onclick="editMemory('${m.id}', 'sqlite')">编辑</button>
-                                            <button class="btn-small btn-delete" onclick="deleteMemory('${m.id}', 'sqlite')">删除</button>
+                                            <button class="btn-small btn-view" onclick="viewDetail('${m.id}', 'sqlite')" title="查看">👁️</button>
+                                            <button class="btn-small btn-edit" onclick="editMemory('${m.id}', 'sqlite')" title="编辑">✏️</button>
+                                            <button class="btn-small btn-delete" onclick="deleteMemory('${m.id}', 'sqlite')" title="删除">🗑️</button>
                                         </div>
-                                        <div class="bubble-meta">
-                                            <span class="bubble-role">${role}</span>
-                                            <span>${timestamp}</span>
+                                        <div class="bubble-header">
+                                            <div class="bubble-avatar">${avatar}</div>
+                                            <div class="bubble-info">
+                                                <div class="bubble-role">${role}</div>
+                                                <div class="bubble-time">${timestamp}</div>
+                                            </div>
                                         </div>
                                         <div class="bubble-text">${escapeHtml(m.content || '')}</div>
                                     </div>
@@ -842,14 +922,18 @@
                             ${memories.map(m => `
                                 <div class="chat-bubble assistant">
                                     <div class="bubble-actions">
-                                        <button class="btn-small btn-view" onclick="viewDetail('${m.id}', 'qdrant')">查看</button>
-                                        <button class="btn-small btn-delete" onclick="deleteMemory('${m.id}', 'qdrant')">删除</button>
+                                        <button class="btn-small btn-view" onclick="viewDetail('${m.id}', 'qdrant')" title="查看">👁️</button>
+                                        <button class="btn-small btn-edit" onclick="editMemory('${m.id}', 'qdrant')" title="编辑">✏️</button>
+                                        <button class="btn-small btn-delete" onclick="deleteMemory('${m.id}', 'qdrant')" title="删除">🗑️</button>
                                     </div>
-                                    <div class="bubble-meta">
-                                        <span class="bubble-role">向量记忆</span>
-                                        <span>${new Date(m.payload?.timestamp || Date.now()).toLocaleString('zh-CN')}</span>
+                                    <div class="bubble-header">
+                                        <div class="bubble-avatar">🤖</div>
+                                        <div class="bubble-info">
+                                            <div class="bubble-role">助手 (Qdrant)</div>
+                                            <div class="bubble-time">${new Date(m.payload?.timestamp || Date.now()).toLocaleString('zh-CN')}</div>
+                                        </div>
                                     </div>
-                                    <div class="bubble-text">${escapeHtml(m.payload?.text || '')}</div>
+                                    <div class="bubble-text">${escapeHtml(m.payload?.text || m.content || '无内容')}</div>
                                 </div>
                             `).join('')}
                         </div>
