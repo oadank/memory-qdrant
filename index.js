@@ -7,13 +7,25 @@ let config = {};
 let axiosInstance = null;
 let openclawApi = null;
 let log = console;  // 全局 log 对象
+let storedMessageHashes = new Set();  // 已存储的消息哈希（去重用）
+
+// 简单的字符串哈希函数
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(36);
+}
 
 // ========== 生命周期 ==========
 
 function initAxios() {
   axiosInstance = axios.create({
     baseURL: config.memoryServerUrl || 'http://localhost:7777',
-    timeout: 10000,
+    timeout: 60000, // 60 秒超时 - 实体提取可能需要更长时间
     headers: {
       'Authorization': `Bearer ${config.authToken || 'clawx-memory-token'}`,
       'Content-Type': 'application/json'
@@ -62,9 +74,20 @@ function shouldFilterMessage(text) {
 // ========== 对话捕获 ==========
 
 async function captureMessage(event, ctx) {
-  log.warn('[memory-qdrant] >>> captureMessage 被调用');
-  log.warn('[memory-qdrant] event:', JSON.stringify({ success: event?.success, messages: event?.messages?.length }));
-  
+  console.warn('[memory-qdrant] >>> captureMessage 被调用');
+  console.warn('[memory-qdrant] 全局变量状态检查:');
+  console.warn('[memory-qdrant]   config:', config ? '已设置' : '未设置', 'memoryServerUrl:', config?.memoryServerUrl);
+  console.warn('[memory-qdrant]   axiosInstance:', axiosInstance ? '已初始化' : '未初始化');
+  console.warn('[memory-qdrant]   openclawApi:', openclawApi ? '已设置' : '未设置');
+  console.warn('[memory-qdrant]   log:', log ? '已设置' : '未设置');
+
+  console.warn('[memory-qdrant] event.success:', event?.success);
+  console.warn('[memory-qdrant] event.messages 长度:', event?.messages?.length);
+  console.warn('[memory-qdrant] event.messages[0]:', JSON.stringify(event?.messages?.[0]).substring(0, 300));
+  console.warn('[memory-qdrant] config.addEnabled:', config?.addEnabled);
+  console.warn('[memory-qdrant] axiosInstance:', axiosInstance ? 'initialized' : 'NOT initialized');
+  console.warn('[memory-qdrant] 完整 event 对象:', JSON.stringify(event, null, 2).substring(0, 2000));
+
   if (!config.addEnabled) {
     log.warn('[memory-qdrant] addEnabled=false, 跳过');
     return;
@@ -77,22 +100,55 @@ async function captureMessage(event, ctx) {
     log.warn('[memory-qdrant] 没有消息，跳过');
     return;
   }
-  
+
   const now = Date.now();
   if (config.throttleMs && now - config.lastCaptureTime < config.throttleMs) return;
   config.lastCaptureTime = now;
-  
+
   try {
-    // 存储所有消息（用户 + 助手）
-    const messages = event.messages.filter(m => m.role === 'user' || m.role === 'assistant');
-    if (!messages.length) {
+    // 只存储最后一轮对话（从最后一个用户消息开始）- MemOS 方案
+    const lastUserIndex = event.messages
+      .map((m, idx) => ({ m, idx }))
+      .filter(({ m }) => m?.role === 'user')
+      .map(({ idx }) => idx)
+      .pop();
+
+    const messagesToStore = lastUserIndex !== undefined
+      ? event.messages.slice(lastUserIndex)
+      : event.messages;
+
+    const filteredMessages = messagesToStore.filter(m => m.role === 'user' || m.role === 'assistant');
+    if (!filteredMessages.length) {
       log.warn('[memory-qdrant] 没有用户或助手消息，跳过');
+      // 调试：输出所有消息的 role
+      log.warn('[memory-qdrant] 所有消息的 role:', event.messages.map(m => m.role || 'undefined').join(', '));
+      log.warn('[memory-qdrant] 完整消息数组:', JSON.stringify(event.messages, null, 2).substring(0, 2000));
       return;
     }
-    
-    for (const msg of messages) {
+
+    console.warn(`[memory-qdrant] 存储最后一轮对话，共 ${filteredMessages.length} 条消息`);
+
+    for (const msg of filteredMessages) {
+      // 完整消息结构日志
+      console.warn('[memory-qdrant] 当前消息完整结构:', JSON.stringify(msg, null, 2).substring(0, 500));
+
+      // 去重检查：基于文本哈希
+      let textForHash = '';
+      if (typeof msg.content === 'string') textForHash = msg.content;
+      else if (msg.content?.text) textForHash = msg.content.text;
+      else if (Array.isArray(msg.content)) textForHash = msg.content.map(c => c.text || '').join(' ');
+
+      const textHash = hashString(textForHash);
+      if (storedMessageHashes.has(textHash)) {
+        console.warn('[memory-qdrant] ⏭️ 消息已存储（哈希去重），跳过');
+        continue;
+      }
+
       // 提取文本内容（支持多种格式）
       let text = '';
+      console.warn('[memory-qdrant] msg.role:', msg.role);
+      console.warn('[memory-qdrant] msg.content 类型:', typeof msg.content, Array.isArray(msg.content) ? '(array)' : '');
+      
       if (typeof msg.content === 'string') {
         text = msg.content.trim();
       } else if (msg.content?.text) {
@@ -101,35 +157,80 @@ async function captureMessage(event, ctx) {
         text = msg.content.map(c => c.text || '').join(' ').trim();
       }
       
-      if (!text) {
-        log.warn('[memory-qdrant] 没有有效文本，跳过');
+      log.warn('[memory-qdrant] 提取的 text 长度:', text.length);
+
+      if (!text || text.length < 3) {
+        log.warn('[memory-qdrant] ⏭️ 跳过：文本太短或为空');
         continue;
       }
-      
-      log.warn('[memory-qdrant] 准备检查文本:', text.substring(0, 50));
-      
+
+      log.warn('[memory-qdrant] 准备检查文本:', text.substring(0, 100));
+
       // 规则过滤
       if (shouldFilterMessage(text)) {
         log.warn('[memory-qdrant] ⏭️ 过滤:', text.substring(0, 30));
         continue;
       }
-      
-      // 过滤掉注入的记忆内容（防止无限套娃）
-      if (text.includes('【相关记忆】') || text.includes('[记忆') || text.includes('本轮用户输入：')) {
-        log.warn('[memory-qdrant] ⏭️ 过滤注入的记忆内容');
-        continue;
+
+      // ========== 强力清理注入内容（防止循环） ==========
+      let cleanText = text;
+
+      // 1. 移除整个【相关记忆】部分（从"【相关记忆】"到下一个"---"或"本轮用户输入"）
+      const memoryStartIndex = cleanText.indexOf('【相关记忆】');
+      if (memoryStartIndex !== -1) {
+        const memoryEndIndex = cleanText.indexOf('本轮用户输入', memoryStartIndex);
+        if (memoryEndIndex !== -1) {
+          // 只保留"本轮用户输入"之后的内容
+          cleanText = cleanText.substring(memoryEndIndex + '本轮用户输入'.length);
+        } else {
+          // 没有"本轮用户输入"，说明整条都是注入内容，跳过
+          log.warn('[memory-qdrant] ⏭️ 跳过：整条消息都是注入内容');
+          continue;
+        }
       }
-      
-      // 清理文本：只移除 metadata 垃圾，保留时间戳
-      const cleanText = text
-        .replace(/Sender \(untrusted metadata\):[\s\S]*?```json[\s\S]*?```\s*/gi, '')
-        .replace(/^\[Sun.*?GMT.*?\]\s*/gi, '')
+
+      // 2. 移除"---"分隔线以上的所有内容（保留最后一轮）
+      const separatorIndex = cleanText.lastIndexOf('---');
+      if (separatorIndex !== -1 && separatorIndex > cleanText.length * 0.5) {
+        // 如果分隔线在后半部分，保留分隔线后的内容
+        const afterSeparator = cleanText.substring(separatorIndex + 3).trim();
+        if (afterSeparator.length > 10) {
+          cleanText = afterSeparator;
+        }
+      }
+
+      // 3. 移除所有注入格式标记
+      cleanText = cleanText
+        .replace(/^\*\*.*?\*\*\s*/g, '')  // 移除 **加粗**
+        .replace(/^\[Sun.*?GMT.*?\]\s*/gi, '')  // 移除 [Sun ... GMT]
+        .replace(/^\[Mon.*?GMT.*?\]\s*/gi, '')  // 移除 [Mon ... GMT]
+        .replace(/^\[\d{4}-\d{2}-\d{2}.*?\]\s*/gi, '')  // 移除 [2026-...]
+        .replace(/^>\s*/gm, '')  // 移除所有行首的 > 引用标记
+        .replace(/^本轮用户输入 [:：]?\s*\n?/i, '')  // 移除"本轮用户输入:"
+        .replace(/^\[2026-\d{2}-\d{2}\s+\d{2}:\d{2}\]\s*/gi, '')  // 移除 [2026-03-09 01:08]
+        .replace(/^\[Mon.*?\]\s*/gi, '')  // 移除 [Mon ...]
+        .replace(/^\[Sun.*?\]\s*/gi, '')  // 移除 [Sun ...]
+        .replace(/^Sender\s*\(untrusted.*?\)\s*:?\s*\n?/gi, '')  // 移除 "Sender (untrusted metadata):"
+        .replace(/```json\s*\{[^}]*\}\s*```/gi, '')  // 移除 ```json {...}```
+        .replace(/^\s*\n+/, '')  // 移除开头空行
+        .replace(/\n+\s*$/, '')  // 移除结尾空行
+        .replace(/^[:：\s]*/, '')  // 移除开头冒号和空格
         .trim();
-      
-      if (!cleanText || cleanText.length < 3) {
-        log.warn('[memory-qdrant] 清理后文本太短，跳过');
+
+      // 4. 二次检查：如果清理后仍然包含注入标记，跳过
+      if (cleanText.includes('【相关记忆】') ||
+          cleanText.includes('---') ||
+          cleanText.includes('[记忆') ||
+          cleanText.length < 3) {
+        log.warn('[memory-qdrant] ⏭️ 跳过：仍包含注入内容或太短');
+        log.warn('[memory-qdrant] 清理后的文本:', cleanText.substring(0, 100));
         continue;
       }
+
+      // 5. 压缩多余空行（保留单个换行，移除连续空行）
+      cleanText = cleanText.replace(/\n{3,}/g, '\n\n');
+
+      log.warn('[memory-qdrant] ✅ 清理后的文本:', cleanText.substring(0, 100));
       
       // 格式化时间
       const now = new Date();
@@ -139,10 +240,10 @@ async function captureMessage(event, ctx) {
       const role = msg.role === 'assistant' ? '助手' : '用户';
       
       log.warn(`[memory-qdrant] 准备存储 (${role}):`, cleanText.substring(0, 50));
-      
+
       try {
-        const response = await axiosInstance.post('/api/memories', {
-          agent_id: openclawApi?.agentId || 'default',
+        const payload = {
+          agent_id: openclawApi?.agentId || 'main',
           scope: 'user',
           content: cleanText,
           tags: ['conversation', msg.role === 'assistant' ? 'assistant_reply' : 'user_message'],
@@ -153,12 +254,36 @@ async function captureMessage(event, ctx) {
             sessionKey: ctx?.sessionKey || '',
             channel: 'webchat'
           }
-        });
-        
-        log.warn('[memory-qdrant] 存储响应:', JSON.stringify(response.data).substring(0, 100));
-        if (config.debug) log.warn(`[memory] ✅ 已存储 (${role}):`, cleanText.substring(0, 50));
+        };
+
+        console.warn('[memory-qdrant] 发送存储请求:', JSON.stringify(payload));
+        console.warn('[memory-qdrant] axiosInstance 状态:', axiosInstance ? '已初始化' : '未初始化!');
+        console.warn('[memory-qdrant] openclawApi?.agentId:', openclawApi?.agentId || 'undefined');
+        console.warn('[memory-qdrant] config.memoryServerUrl:', config?.memoryServerUrl);
+
+        if (!axiosInstance) {
+          console.error('[memory-qdrant] ❌ axiosInstance 未初始化！');
+          continue;
+        }
+
+        const response = await axiosInstance.post('/api/memories', payload);
+
+        console.warn('[memory-qdrant] 存储响应状态:', response.status);
+        console.warn('[memory-qdrant] 存储响应:', JSON.stringify(response.data));
+        console.warn(`[memory-qdrant] ✅ 已存储 (${role}):`, cleanText.substring(0, 80));
       } catch (error) {
-        log.error('[memory-qdrant] ❌ 存储失败:', error.response?.data || error.message);
+        console.error('[memory-qdrant] ❌ 存储失败 - 完整错误:', JSON.stringify({
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          config: {
+            url: error.config?.url,
+            method: error.config?.method,
+            baseURL: error.config?.baseURL
+          }
+        }, null, 2));
       }
     }
   } catch (error) {
@@ -171,29 +296,49 @@ async function captureMessage(event, ctx) {
 async function searchAndInject(event, ctx) {
   console.log('[memory-qdrant] >>> searchAndInject 被调用');
   console.log('[memory-qdrant] event.prompt:', event?.prompt?.substring(0, 50));
-  
+
   if (!config.recallEnabled) {
     console.log('[memory-qdrant] recallEnabled=false, 跳过');
     return null;
   }
-  
+
   const prompt = event?.prompt;
   if (!prompt || prompt.trim().length < 3) {
     console.log('[memory-qdrant] prompt 太短，跳过');
     return null;
   }
-  
+
   // 跳过新会话提示
   if (/\/new|\/reset|A new session was started/i.test(prompt)) {
     console.log('[memory-qdrant] 新会话提示，跳过');
     return null;
+  }
+
+  // 跳过系统级提示词（生成 slug、总结等）
+  const systemPromptPatterns = [
+    /generate.*slug/i,
+    /filename slug/i,
+    /1-2 word/i,
+    /lowercase.*hyphen.*separated/i,
+    /Reply with ONLY/i,
+    /Based on this conversation/i,
+    /Conversation summary:/i,
+    /summarize.*conversation/i,
+    /generate.*title/i,
+  ];
+
+  for (const pattern of systemPromptPatterns) {
+    if (pattern.test(prompt)) {
+      console.log('[memory-qdrant] 系统提示词，跳过搜索');
+      return null;
+    }
   }
   
   try {
     console.log('[memory-qdrant] 准备搜索:', prompt.substring(0, 30));
     
     const searchPayload = {
-      agent_id: openclawApi?.agentId || 'default',
+      agent_id: openclawApi?.agentId || 'main',
       query: prompt,
       limit: config.topK || 5
     };
@@ -253,10 +398,14 @@ async function searchAndInject(event, ctx) {
     
     if (config.debug) log.warn(`[memory] 🔍 找到 ${memories.length} 条，去重后 ${uniqueMemories.length} 条`);
     
-    // 添加固定提示词 - 用分隔线明确区分
-    const fixedPrompt = '\n\n---\n\n**本轮用户输入**:\n';
+    // 格式化时间戳（去掉星期，只显示日期时间）
+    const now = new Date();
+    const timestamp = `[${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}]`;
     
-    const result = { prependContext: `\n**【相关记忆】**:\n\n${memoryContextText}${fixedPrompt}` };
+    // 添加固定提示词 - 用分隔线明确区分
+    const fixedPrompt = `\n\n---\n\n本轮用户输入:\n${timestamp}\n`;
+    
+    const result = { prependContext: `\n\n**【相关记忆】**\n\n${memoryContextText}\n\n---\n${fixedPrompt}` };
     log.warn('[memory-qdrant] 返回注入内容:', result.prependContext.substring(0, 300));
     
     return result;
@@ -273,8 +422,12 @@ export default {
   name: "memory-qdrant",
   description: "OpenClaw 三层记忆架构插件 - SQLite + Qdrant + AGE",
   kind: "lifecycle",
-  
+
   register(api) {
+    console.warn('[memory-qdrant] >>> register 被调用');
+    console.warn('[memory-qdrant] api 对象 keys:', Object.keys(api || {}).join(', '));
+    console.warn('[memory-qdrant] api.pluginConfig:', JSON.stringify(api?.pluginConfig));
+
     openclawApi = api;
     config = api.pluginConfig || {};
     config.debug = true;
@@ -282,26 +435,38 @@ export default {
     config.recallEnabled = true;
     config.addEnabled = true;
     config.throttleMs = 0; // 不限制频率
+    config.topK = 4; // 最多注入 4 条记忆
+    config.memoryServerUrl = config.memoryServerUrl || 'http://localhost:7777';
+    config.authToken = config.authToken || 'clawx-memory-token';
+
+    console.warn('[memory-qdrant] 设置 config.memoryServerUrl:', config.memoryServerUrl);
+    console.warn('[memory-qdrant] 设置 config.authToken:', config.authToken);
+
     log = api.logger ?? console;  // ← 赋值给全局 log
     initAxios();
-    
+
+    console.warn('[memory-qdrant] initAxios 完成，axiosInstance:', axiosInstance ? '已初始化' : '未初始化!');
+    console.warn('[memory-qdrant] axiosInstance baseURL:', axiosInstance?.defaults?.baseURL);
+
     log.warn('[memory-qdrant] 插件已注册 | SQLite+Qdrant+AGE | Full Tier');
     log.warn('[memory-qdrant] 调试模式已启用');
     log.warn('[memory-qdrant] API 对象:', Object.keys(api || {}).join(', '));
     log.warn('[memory-qdrant] pluginConfig:', JSON.stringify(config));
-    
+
     // 注册钩子
     api.on("before_agent_start", async (event, ctx) => {
       log.warn('[memory-qdrant] >>> before_agent_start 触发');
       log.warn('[memory-qdrant] event.prompt:', event?.prompt?.substring(0, 50));
       return await searchAndInject(event, ctx);
     });
-    
+
     api.on("agent_end", async (event, ctx) => {
       log.warn('[memory-qdrant] >>> agent_end 触发');
       log.warn('[memory-qdrant] event:', JSON.stringify({ success: event?.success, messages: event?.messages?.length }));
       return await captureMessage(event, ctx);
     });
+
+    console.warn('[memory-qdrant] >>> 钩子注册完成');
   },
   
   activate() {
