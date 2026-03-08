@@ -2,6 +2,7 @@ node_modules/
 nul
 server-fixed.js
 .vscode/
+.claude/
 claude-project.json
 auto_summary/*.log
 auto_summary/*.txt
