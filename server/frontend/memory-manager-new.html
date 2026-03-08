@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qdrant 记忆管理器 v2.0</title>
+    <title>Qdrant 记忆管理器</title>
     <style>
         :root {
             --primary-color: #409eff;
@@ -973,9 +973,9 @@
     <script>
         // 配置信息
         const CONFIG = {
-            apiUrl: "http://localhost:7777",
+            apiUrl: "http://localhost:3001",
             qdrantUrl: "http://localhost:6333",
-            collection: "openclaw_memories",
+            collection: "agent_memory",
             pageSize: 50,
             currentPage: 1
         };
@@ -1181,8 +1181,8 @@
             const sortedMemories = currentState.allMemories
                 .filter(hasRenderableText)
                 .sort((a, b) => {
-                const timeA = toTimestampMs(a.payload?.timestamp, a.payload?.text || '') || 0;
-                const timeB = toTimestampMs(b.payload?.timestamp, b.payload?.text || '') || 0;
+                const timeA = toTimestampMs(a.created_at, a.content || '') || 0;
+                const timeB = toTimestampMs(b.created_at, b.content || '') || 0;
                 return timeB - timeA;
             });
 
@@ -1214,8 +1214,8 @@
             const sortedMemories = currentState.allMemories
                 .filter(hasRenderableText)
                 .sort((a, b) => {
-                const timeA = toTimestampMs(a.payload?.timestamp, a.payload?.text || '') || 0;
-                const timeB = toTimestampMs(b.payload?.timestamp, b.payload?.text || '') || 0;
+                const timeA = toTimestampMs(a.created_at, a.content || '') || 0;
+                const timeB = toTimestampMs(b.created_at, b.content || '') || 0;
                 return timeB - timeA;
             });
 
@@ -1253,7 +1253,7 @@
 
             // 过滤包含搜索词的记忆
             const filteredMemories = currentState.allMemories.filter(memory => {
-                const text = cleanTextForDisplay(memory.content || '');
+                const text = cleanTextForDisplay(memory.payload?.text || '');
                 return text.toLowerCase().includes(query);
             });
 
@@ -1284,8 +1284,8 @@
 
             // 按时间排序（最新的在前）
             const sortedMemories = [...visibleMemories].sort((a, b) => {
-                const timeA = toTimestampMs(a.payload?.timestamp, a.payload?.text || '') || 0;
-                const timeB = toTimestampMs(b.payload?.timestamp, b.payload?.text || '') || 0;
+                const timeA = toTimestampMs(a.created_at, a.content || '') || 0;
+                const timeB = toTimestampMs(b.created_at, b.content || '') || 0;
                 return timeB - timeA;
             });
 
@@ -1304,13 +1304,13 @@
                 const role = typeof payload.role === 'string' ? payload.role.trim().toLowerCase() : '';
                 const memType = payload.mem_type || 'fact';
                 const sourceType = payload.source_type || 'raw';
-                const formattedTime = formatTime(payload.timestamp, memory.content || '');
+                const formattedTime = formatTime(payload.timestamp, payload.text || '');
                 const canRefine = payload.processed === false;
                 const showType = sourceType === 'insight' || sourceType === 'manual' || memType === 'insight';
                 const typeLabel = getTypeLabel(memType, sourceType);
 
                 // 高亮搜索词
-                const displayRawText = cleanTextForDisplay(memory.content || '');
+                const displayRawText = cleanTextForDisplay(payload.text || '');
                 let displayText = escapeHtml(displayRawText);
                 if (searchQuery) {
                     const regex = new RegExp(`(${escapeRegExp(searchQuery)})`, 'gi');
@@ -1347,7 +1347,7 @@
                 const indexLeft = className === 'assistant' ? `<div class="message-index-left"><span class="index-num">${globalIndex + 1}</span></div>` : '<div class="message-index-left hidden"></div>';
                 const indexRight = className !== 'assistant' ? `<div class="message-index-right"><span class="index-num">${globalIndex + 1}</span></div>` : '<div class="message-index-right hidden"></div>';
                 const refineButtonHtml = canRefine
-                    ? `<button class="action-btn" title="重新梳理" onclick="refineMessage('${memory.id}', '${escapeJsString(memory.content || '')}', '${escapeJsString(role)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h16.5a1.5 1.5 0 0 0 0-3H3a2 2 0 0 0 0 4h16.5a1.5 1.5 0 0 1 0 3H3a2 2 0 0 1 0-4Z"></path><path d="M3 19h13.5a1.5 1.5 0 0 0 0-3H3a2 2 0 0 0 0 4h13.5a1.5 1.5 0 0 1 0 3H3a2 2 0 0 1 0-4Z"></path></svg></button>`
+                    ? `<button class="action-btn" title="重新梳理" onclick="refineMessage('${memory.id}', '${escapeJsString(payload.text || '')}', '${escapeJsString(role)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h16.5a1.5 1.5 0 0 0 0-3H3a2 2 0 0 0 0 4h16.5a1.5 1.5 0 0 1 0 3H3a2 2 0 0 1 0-4Z"></path><path d="M3 19h13.5a1.5 1.5 0 0 0 0-3H3a2 2 0 0 0 0 4h13.5a1.5 1.5 0 0 1 0 3H3a2 2 0 0 1 0-4Z"></path></svg></button>`
                     : '';
 
                 htmlContent += `
@@ -1404,7 +1404,7 @@
                 // 调用后端的提炼功能
                 const response = await apiRequest('/api/refine', {
                     id: id,
-                    content: text,
+                    text: text,
                     role: role
                 }, 'POST');
 
@@ -1576,8 +1576,7 @@
             const options = {
                 method,
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer clawx-memory-token'
+                    'Content-Type': 'application/json'
                 }
             };
 
@@ -1646,7 +1645,7 @@
             }
 
             try {
-                await apiRequest('/api/memories', null, 'DELETE');
+                await apiRequest('/api/memories/all', null, 'DELETE');
                 loadMemories();
                 showNotification('全部记忆删除成功');
             } catch (err) {
@@ -1668,12 +1667,12 @@
                 // 向后端请求插入记忆
                 const response = await apiRequest('/api/memories', {
                     content: text,
-                    tags: ['manual'],  // 插入的记忆类型为精华
-                    scope: 'user',     // 手动插入的记忆视为用户类型
+                    scope: 'user',
+                    tags: ['manual'],
                     source: 'explicit'
                 }, 'POST');
 
-                showNotification(`记忆插入成功！ID: ${response.id}, 关键词: ${(response.keywords || []).join(', ')}`);
+                showNotification(`记忆插入成功！ID: ${response.id}`);
                 inputBox.value = '';
                 loadMemories();
             } catch (err) {
@@ -1761,6 +1760,5 @@
     </script>
 </body>
 </html>
-
 
 

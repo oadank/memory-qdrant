@@ -1,5 +1,5 @@
 {
-  "id": "openclaw_qdrant_age_server",
+  "id": "memory-qdrant",
   "name": "三层记忆插件",
   "version": "2.0.0",
   "description": "OpenClaw 三层记忆架构插件 - 纯血极简版 (SQLite + Qdrant + AGE)",

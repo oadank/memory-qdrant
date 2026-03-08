@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三层记忆管理器 - OpenClaw</title>
+    <style>
+        :root {
+            --primary: #409eff;
+            --success: #67c23a;
+            --danger: #f56c6c;
+            --warning: #e6a23c;
+            --bg: #f5f7fa;
+            --card-bg: #fff;
+            --text: #303133;
+            --border: #dcdfe6;
+            --header-bg: #fff;
+            --bubble-assistant: #fff;
+            --bubble-user: #409eff;
+        }
+        
+        [data-theme="dark"] {
+            --bg: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text: #e0e0e0;
+            --border: #444;
+            --header-bg: #2d2d2d;
+            --bubble-assistant: #2d2d2d;
+            --bubble-user: #3a70d0;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 0;
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        /* Header - 参考 OpenClaw Dashboard */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        
+        .logo-icon {
+            font-size: 32px;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+        
+        .status-dot.error {
+            background: var(--danger);
+        }
+        
+        .theme-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+        
+        .theme-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .restart-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        
+        .restart-btn:hover {
+            background: var(--warning);
+            color: white;
+            border-color: var(--warning);
+        }
+        
+        /* 合并的统计 + Tabs */
+        .stats-tabs-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+        }
+        
+        .stats-inline {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        
+        .stat-item .stat-label {
+            color: var(--text);
+            opacity: 0.7;
+        }
+        
+        .stat-item .stat-value {
+            font-weight: bold;
+            color: var(--primary);
+            font-size: 16px;
+            min-width: 30px;
+        }
+        
+        .tabs-inline {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .tab-btn-inline {
+            padding: 8px 16px;
+            border: none;
+            background: var(--bg);
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            color: var(--text);
+        }
+        .tab-btn-inline:hover { background: var(--primary); color: white; }
+        .tab-btn-inline.active { background: var(--primary); color: white; }
+        
+        /* 主内容区 - 固定布局 */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            height: calc(100vh - 180px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tab-content-inline {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+        .tab-content-inline.active { display: flex; }
+        
+        /* 工具栏 */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .toolbar-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .toolbar .btn {
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+        
+        /* 内容滚动区 */
+        .content-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        /* 固定分页 */
+        .pagination-fixed {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            padding: 12px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        
+        /* 按钮样式 */
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #66b1ff; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-view { background: var(--primary); color: white; }
+        .btn-view:hover { background: #66b1ff; }
+        .btn-edit { background: var(--warning); color: white; }
+        .btn-edit:hover { background: #f0b426; }
+        .btn-delete { background: var(--danger); color: white; }
+        .btn-delete:hover { background: #f78989; }
+        
+        /* Chat Bubbles */
+        .chat-container { display: flex; flex-direction: column; gap: 15px; }
+        .chat-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            position: relative;
+            word-wrap: break-word;
+            background: var(--bubble-assistant);
+            border: 1px solid var(--border);
+        }
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--bubble-user);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-bubble.user .bubble-meta { color: rgba(255,255,255,0.8); }
+        .chat-bubble.user .bubble-actions { 
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .chat-bubble.user .bubble-actions .btn-small {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        .chat-bubble.user .bubble-actions .btn-small:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        .bubble-meta {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .bubble-role {
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.1);
+        }
+        .bubble-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+        
+        .bubble-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            background: var(--card-bg);
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        
+        .chat-bubble:hover .bubble-actions {
+            opacity: 1;
+        }
+        
+        /* Pagination */
+        .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; }
+        .page-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            cursor: pointer;
+            border-radius: 4px;
+            color: var(--text);
+        }
+        .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* Stats */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-value { font-size: 24px; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 14px; color: var(--text); opacity: 0.8; margin-top: 5px; }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            color: var(--text);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 14px;
+            background: var(--card-bg);
+            color: var(--text);
+        }
+        .form-group textarea { min-height: 100px; resize: vertical; }
+        
+        /* Loading */
+        .loading { text-align: center; padding: 40px; color: var(--text); opacity: 0.6; }
+        .spinner {
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: var(--card-bg);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+            color: var(--text);
+        }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    </style>
+</head>
+<body>
+    <!-- Header - 参考 OpenClaw Dashboard -->
+    <div class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">🧠</span>
+                <div>
+                    <div>记忆管理器</div>
+                    <div style="font-size: 12px; opacity: 0.7;">OpenClaw Memory</div>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <!-- SQLite 状态 -->
+            <div class="status-pill" id="sqlite-status">
+                <span class="status-dot"></span>
+                <span>SQLite 正常</span>
+            </div>
+            <!-- Qdrant 状态 -->
+            <div class="status-pill" id="qdrant-status">
+                <span class="status-dot"></span>
+                <span>Qdrant 正常</span>
+            </div>
+            <!-- AGE 状态 -->
+            <div class="status-pill" id="age-status">
+                <span class="status-dot"></span>
+                <span>AGE 正常</span>
+            </div>
+            <!-- 重启按钮 -->
+            <button class="restart-btn" onclick="restartServices()" title="重启服务">
+                🔄
+            </button>
+            <!-- 暗黑模式切换 -->
+            <button class="theme-btn" onclick="toggleTheme()" title="切换主题">
+                🌓
+            </button>
+        </div>
+    </div>
+    
+    <!-- 合并的统计 + Tabs -->
+    <div class="stats-tabs-container">
+        <div class="stats-inline">
+            <div class="stat-item">
+                <span class="stat-label">SQLite:</span>
+                <span class="stat-value" id="sqlite-count">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Qdrant:</span>
+                <span class="stat-value" id="qdrant-count">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">AGE:</span>
+                <span class="stat-value" id="age-count">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">队列:</span>
+                <span class="stat-value" id="sync-queue-count">-</span>
+            </div>
+        </div>
+        <div class="tabs-inline">
+            <button class="tab-btn-inline active" data-tab="sqlite">📄 SQLite</button>
+            <button class="tab-btn-inline" data-tab="qdrant">🔍 Qdrant</button>
+            <button class="tab-btn-inline" data-tab="age">🕸️ AGE</button>
+        </div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div class="main-container">
+        <!-- Tab 1: SQLite -->
+        <div id="sqlite-tab" class="tab-content-inline active">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <span class="toolbar-title">SQLite 记忆管理</span>
+                </div>
+                <div class="toolbar-right">
+                    <input type="text" id="sqlite-search" placeholder="搜索内容..." style="flex:1; min-width:200px; padding:8px 12px; border:1px solid var(--border); border-radius:4px; background: var(--card-bg); color: var(--text);">
+                    <button class="btn btn-primary" onclick="searchSqlite()">🔍 搜索</button>
+                    <button class="btn btn-primary" onclick="openAddModal('sqlite')">➕ 新增</button>
+                    <button class="btn btn-success" onclick="refreshData('sqlite')">🔄 刷新</button>
+                </div>
+            </div>
+            <div class="content-scroll" id="sqlite-content">
+                <div class="chat-container" id="sqlite-table">
+                    <div class="loading"><div class="spinner"></div>加载中...</div>
+                </div>
+            </div>
+            <div class="pagination-fixed" id="sqlite-pagination"></div>
+        </div>
+        
+        <!-- Tab 2: Qdrant -->
+        <div id="qdrant-tab" class="tab-content-inline">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <span class="toolbar-title">Qdrant 向量管理</span>
+                </div>
+                <div class="toolbar-right">
+                    <input type="text" id="qdrant-search" placeholder="语义搜索..." style="flex:1; min-width:200px; padding:8px 12px; border:1px solid var(--border); border-radius:4px; background: var(--card-bg); color: var(--text);">
+                    <button class="btn btn-primary" onclick="searchQdrant()">🔍 搜索</button>
+                    <button class="btn btn-success" onclick="refreshData('qdrant')">🔄 刷新</button>
+                    <button class="btn btn-warning" onclick="reindexAll()">🔁 重索引</button>
+                </div>
+            </div>
+            <div class="content-scroll" id="qdrant-content">
+                <div class="chat-container" id="qdrant-table">
+                    <div class="loading"><div class="spinner"></div>加载中...</div>
+                </div>
+            </div>
+            <div class="pagination-fixed" id="qdrant-pagination"></div>
+        </div>
+        
+        <!-- Tab 3: AGE -->
+        <div id="age-tab" class="tab-content-inline">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <span class="toolbar-title">AGE 知识图谱管理</span>
+                </div>
+                <div class="toolbar-right">
+                    <input type="text" id="age-search" placeholder="搜索实体..." style="flex:1; min-width:200px; padding:8px 12px; border:1px solid var(--border); border-radius:4px; background: var(--card-bg); color: var(--text);">
+                    <button class="btn btn-primary" onclick="searchAge()">🔍 搜索</button>
+                    <button class="btn btn-success" onclick="refreshData('age')">🔄 刷新</button>
+                    <button class="btn btn-primary" onclick="extractEntities()">🔬 提取实体</button>
+                </div>
+            </div>
+            <div class="content-scroll" id="age-content">
+                <div class="chat-container" id="age-table">
+                    <div class="loading"><div class="spinner"></div>加载中...</div>
+                </div>
+            </div>
+            <div class="pagination-fixed" id="age-pagination"></div>
+        </div>
+    </div>
+    
+    <!-- 新增/编辑 Modal -->
+    <div id="add-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">新增记忆</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <form id="add-form" onsubmit="handleSubmit(event)">
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="edit-layer">
+                <div class="form-group">
+                    <label>内容 *</label>
+                    <textarea id="form-content" required placeholder="输入记忆内容..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Agent ID</label>
+                    <input type="text" id="form-agent-id" value="default" placeholder="default">
+                </div>
+                <div class="form-group">
+                    <label>Scope</label>
+                    <select id="form-scope">
+                        <option value="user">user</option>
+                        <option value="agent">agent</option>
+                        <option value="global">global</option>
+                        <option value="project">project</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tags (逗号分隔)</label>
+                    <input type="text" id="form-tags" placeholder="tag1, tag2">
+                </div>
+                <div class="form-group">
+                    <label>Source</label>
+                    <select id="form-source">
+                        <option value="explicit">explicit</option>
+                        <option value="inferred">inferred</option>
+                        <option value="extracted">extracted</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end;">
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 详情 Modal -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>记忆详情</h3>
+                <button class="modal-close" onclick="closeDetailModal()">×</button>
+            </div>
+            <div id="detail-content"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:7777/api';
+        const AUTH_TOKEN = 'clawx-memory-token';
+        const HEADERS = {
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json'
+        };
+        
+        let currentPage = { sqlite: 1, qdrant: 1, age: 1 };
+        const pageSize = 20;
+        
+        // 主题切换
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+        
+        // 加载保存的主题
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        // 服务状态检查
+        async function checkServiceStatus() {
+            try {
+                // 检查 SQLite
+                const sqliteRes = await fetch(`${API_BASE}/memories?limit=1`, { headers: HEADERS });
+                const sqliteOk = sqliteRes.ok;
+                updateStatusPill('sqlite', sqliteOk);
+                
+                // 检查 Qdrant
+                const qdrantRes = await fetch(`${API_BASE}/qdrant/count`, { 
+                    method: 'POST',
+                    headers: HEADERS
+                }).catch(() => ({ ok: false }));
+                const qdrantOk = qdrantRes.ok;
+                updateStatusPill('qdrant', qdrantOk);
+                
+                // AGE 暂时默认正常
+                updateStatusPill('age', true);
+            } catch (e) {
+                console.error('服务状态检查失败:', e);
+                updateStatusPill('sqlite', false);
+                updateStatusPill('qdrant', false);
+                updateStatusPill('age', false);
+            }
+        }
+        
+        function updateStatusPill(service, ok) {
+            const pill = document.getElementById(`${service}-status`);
+            const dot = pill.querySelector('.status-dot');
+            const text = pill.querySelector('span:last-child');
+            
+            if (ok) {
+                dot.classList.remove('error');
+                text.textContent = `${service.toUpperCase()} 正常`;
+            } else {
+                dot.classList.add('error');
+                text.textContent = `${service.toUpperCase()} 异常`;
+            }
+        }
+        
+        // 重启服务
+        async function restartServices() {
+            if (!confirm('确定要重启记忆服务吗？这可能需要几秒钟。')) return;
+            
+            try {
+                showToast('正在重启服务...', 'success');
+                // 调用重启 API（需要后端支持）
+                await fetch(`${API_BASE}/restart`, { 
+                    method: 'POST',
+                    headers: HEADERS
+                }).catch(() => {});
+                
+                setTimeout(() => {
+                    showToast('服务重启完成', 'success');
+                    refreshData('sqlite');
+                }, 3000);
+            } catch (e) {
+                showToast('重启失败：' + e.message, 'error');
+            }
+        }
+        
+        // Tab 切换
+        document.querySelectorAll('.tab-btn-inline').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn-inline').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content-inline').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(`${btn.dataset.tab}-tab`).classList.add('active');
+                refreshData(btn.dataset.tab);
+            });
+        });
+        
+        // 刷新数据
+        async function refreshData(layer) {
+            if (layer === 'sqlite') await loadSqliteMemories();
+            else if (layer === 'qdrant') await loadQdrantMemories();
+            else if (layer === 'age') await loadAgeEntities();
+            await loadStats();
+            await checkServiceStatus();
+        }
+        
+        // 加载统计
+        async function loadStats() {
+            try {
+                const memories = await fetch(`${API_BASE}/memories`, { headers: HEADERS }).then(r => r.json());
+                document.getElementById('sqlite-count').textContent = memories.memories?.length || 0;
+                
+                const qdrant = await fetch(`${API_BASE}/qdrant/count`, { headers: HEADERS, method: 'POST' })
+                    .then(r => r.json()).catch(() => ({ count: 0 }));
+                document.getElementById('qdrant-count').textContent = qdrant.count || 0;
+                
+                document.getElementById('age-count').textContent = '-';
+                document.getElementById('sync-queue-count').textContent = '-';
+            } catch (e) {
+                console.error('加载统计失败:', e);
+            }
+        }
+        
+        // 加载 SQLite 记忆（对话气泡样式）
+        async function loadSqliteMemories(page = 1) {
+            currentPage.sqlite = page;
+            const container = document.getElementById('sqlite-table');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>加载中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/memories?limit=${pageSize}&offset=${(page-1)*pageSize}`, { headers: HEADERS });
+                const data = await res.json();
+                const memories = data.memories || [];
+                
+                if (memories.length === 0) {
+                    container.innerHTML = '<div class="loading">暂无数据</div>';
+                } else {
+                    container.innerHTML = `
+                        <div class="chat-container">
+                            ${memories.map(m => {
+                                // 根据 tags 判断角色
+                                const tags = m.tags || [];
+                                const isUserMessage = tags.includes('user_message');
+                                const isAssistantReply = tags.includes('assistant_reply');
+                                const role = isUserMessage ? '用户' : (isAssistantReply ? '助手' : '助手');
+                                const timestamp = m.info?.timestamp || new Date(m.created_at || Date.now()).toLocaleString('zh-CN');
+                                return `
+                                    <div class="chat-bubble ${isUserMessage ? 'user' : 'assistant'}">
+                                        <div class="bubble-actions">
+                                            <button class="btn-small btn-view" onclick="viewDetail('${m.id}', 'sqlite')">查看</button>
+                                            <button class="btn-small btn-edit" onclick="editMemory('${m.id}', 'sqlite')">编辑</button>
+                                            <button class="btn-small btn-delete" onclick="deleteMemory('${m.id}', 'sqlite')">删除</button>
+                                        </div>
+                                        <div class="bubble-meta">
+                                            <span class="bubble-role">${role}</span>
+                                            <span>${timestamp}</span>
+                                        </div>
+                                        <div class="bubble-text">${escapeHtml(m.content || '')}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+                
+                renderPagination('sqlite', page, memories.length < pageSize);
+            } catch (e) {
+                container.innerHTML = `<div class="loading" style="color:var(--danger)">加载失败：${e.message}</div>`;
+                showToast('加载失败', 'error');
+            }
+        }
+        
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 加载 Qdrant 记忆
+        async function loadQdrantMemories(page = 1) {
+            currentPage.qdrant = page;
+            const container = document.getElementById('qdrant-table');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>加载中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/memories?limit=${pageSize}&offset=${(page-1)*pageSize}`, { headers: HEADERS });
+                const data = await res.json();
+                const memories = data.memories || [];
+                
+                if (memories.length === 0) {
+                    container.innerHTML = '<div class="loading">暂无数据</div>';
+                } else {
+                    container.innerHTML = `
+                        <div class="chat-container">
+                            ${memories.map(m => `
+                                <div class="chat-bubble assistant">
+                                    <div class="bubble-actions">
+                                        <button class="btn-small btn-view" onclick="viewDetail('${m.id}', 'qdrant')">查看</button>
+                                        <button class="btn-small btn-delete" onclick="deleteMemory('${m.id}', 'qdrant')">删除</button>
+                                    </div>
+                                    <div class="bubble-meta">
+                                        <span class="bubble-role">向量记忆</span>
+                                        <span>${new Date(m.payload?.timestamp || Date.now()).toLocaleString('zh-CN')}</span>
+                                    </div>
+                                    <div class="bubble-text">${escapeHtml(m.payload?.text || '')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+                
+                renderPagination('qdrant', page, memories.length < pageSize);
+            } catch (e) {
+                container.innerHTML = `<div class="loading" style="color:var(--danger)">加载失败：${e.message}</div>`;
+            }
+        }
+        
+        // 加载 AGE 实体
+        async function loadAgeEntities(page = 1) {
+            currentPage.age = page;
+            const container = document.getElementById('age-table');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>加载中...</div>';
+            
+            try {
+                container.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>实体名</th>
+                                <th>类型</th>
+                                <th>关联数</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" style="text-align:center;">AGE 功能开发中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                `;
+            } catch (e) {
+                container.innerHTML = `<div class="loading" style="color:var(--danger)">加载失败：${e.message}</div>`;
+            }
+        }
+        
+        // 搜索 SQLite
+        async function searchSqlite() {
+            const query = document.getElementById('sqlite-search').value;
+            if (!query) { loadSqliteMemories(); return; }
+            
+            const container = document.getElementById('sqlite-table');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>搜索中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/memories`, { headers: HEADERS });
+                const data = await res.json();
+                const filtered = (data.memories || []).filter(m => 
+                    (m.content || '').toLowerCase().includes(query.toLowerCase())
+                );
+                
+                renderSearchResults('sqlite', filtered);
+            } catch (e) {
+                showToast('搜索失败', 'error');
+            }
+        }
+        
+        // 搜索 Qdrant
+        async function searchQdrant() {
+            const query = document.getElementById('qdrant-search').value;
+            if (!query) { loadQdrantMemories(); return; }
+            
+            const container = document.getElementById('qdrant-table');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>搜索中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: HEADERS,
+                    body: JSON.stringify({ query, limit: 20 })
+                });
+                const data = await res.json();
+                const results = data.results || [];
+                
+                renderSearchResults('qdrant', results.map(r => ({ ...r.memory, score: r.score })));
+            } catch (e) {
+                showToast('搜索失败', 'error');
+            }
+        }
+        
+        // 搜索 AGE
+        async function searchAge() {
+            showToast('AGE 搜索功能开发中...', 'warning');
+        }
+        
+        // 渲染搜索结果
+        function renderSearchResults(layer, results) {
+            const container = document.getElementById(`${layer}-table`);
+            if (results.length === 0) {
+                container.innerHTML = '<div class="loading">未找到结果</div>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="chat-container">
+                    ${results.map(r => `
+                        <div class="chat-bubble assistant">
+                            <div class="bubble-actions">
+                                <button class="btn-small btn-view" onclick="viewDetail('${r.id}', '${layer}')">查看</button>
+                                <button class="btn-small btn-delete" onclick="deleteMemory('${r.id}', '${layer}')">删除</button>
+                            </div>
+                            <div class="bubble-meta">
+                                <span class="bubble-role">${layer === 'qdrant' ? `相似度：${(r.score || 0).toFixed(3)}` : '记忆'}</span>
+                            </div>
+                            <div class="bubble-text">${escapeHtml(r.content || '')}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // 渲染分页
+        function renderPagination(layer, current, isLast) {
+            const container = document.getElementById(`${layer}-pagination`);
+            container.innerHTML = `
+                <button class="page-btn" ${current === 1 ? 'disabled' : ''} onclick="load${layer.charAt(0).toUpperCase() + layer.slice(1)}Memories(${current - 1})">上一页</button>
+                <button class="page-btn active">${current}</button>
+                <button class="page-btn" ${isLast ? 'disabled' : ''} onclick="load${layer.charAt(0).toUpperCase() + layer.slice(1)}Memories(${current + 1})">下一页</button>
+            `;
+        }
+        
+        // 查看详情
+        async function viewDetail(id, layer) {
+            try {
+                const res = await fetch(`${API_BASE}/memories/${id}`, { headers: HEADERS });
+                const data = await res.json();
+                
+                document.getElementById('detail-content').innerHTML = `
+                    <div class="form-group">
+                        <label>ID</label>
+                        <input type="text" value="${data.id || id}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>内容</label>
+                        <textarea readonly style="min-height:200px;">${data.content || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Scope</label>
+                        <input type="text" value="${data.scope || '-'}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Tags</label>
+                        <input type="text" value="${(data.tags || []).join(', ')}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>创建时间</label>
+                        <input type="text" value="${new Date(data.created_at || Date.now()).toLocaleString('zh-CN')}" readonly>
+                    </div>
+                `;
+                document.getElementById('detail-modal').classList.add('active');
+            } catch (e) {
+                showToast('加载详情失败', 'error');
+            }
+        }
+        
+        function closeDetailModal() {
+            document.getElementById('detail-modal').classList.remove('active');
+        }
+        
+        // 新增/编辑
+        function openAddModal(layer) {
+            document.getElementById('edit-id').value = '';
+            document.getElementById('edit-layer').value = layer;
+            document.getElementById('form-content').value = '';
+            document.getElementById('modal-title').textContent = '新增记忆';
+            document.getElementById('add-modal').classList.add('active');
+        }
+        
+        function editMemory(id, layer) {
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-layer').value = layer;
+            document.getElementById('modal-title').textContent = '编辑记忆';
+            document.getElementById('add-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('add-modal').classList.remove('active');
+        }
+        
+        // 提交表单
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('edit-id').value;
+            const layer = document.getElementById('edit-layer').value;
+            const content = document.getElementById('form-content').value;
+            
+            const payload = {
+                agent_id: document.getElementById('form-agent-id').value,
+                scope: document.getElementById('form-scope').value,
+                content: content,
+                tags: document.getElementById('form-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+                source: document.getElementById('form-source').value
+            };
+            
+            try {
+                const url = id ? `${API_BASE}/memories/${id}` : `${API_BASE}/memories`;
+                const method = id ? 'PUT' : 'POST';
+                
+                const res = await fetch(url, {
+                    method,
+                    headers: HEADERS,
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    showToast(id ? '更新成功' : '创建成功', 'success');
+                    closeModal();
+                    refreshData(layer);
+                } else {
+                    const error = await res.json();
+                    showToast(error.details || '操作失败', 'error');
+                }
+            } catch (e) {
+                showToast('操作失败：' + e.message, 'error');
+            }
+        }
+        
+        // 删除记忆
+        async function deleteMemory(id, layer) {
+            if (!confirm('确定要删除这条记忆吗？')) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/memories/${id}`, {
+                    method: 'DELETE',
+                    headers: HEADERS
+                });
+                
+                if (res.ok) {
+                    showToast('删除成功', 'success');
+                    refreshData(layer);
+                } else {
+                    showToast('删除失败', 'error');
+                }
+            } catch (e) {
+                showToast('删除失败：' + e.message, 'error');
+            }
+        }
+        
+        // 重新索引
+        async function reindexAll() {
+            if (!confirm('确定要重新索引所有记忆吗？这可能需要几分钟。')) return;
+            
+            showToast('开始重新索引...', 'success');
+            // TODO: 调用后端 API
+        }
+        
+        // 提取实体
+        async function extractEntities() {
+            showToast('实体提取功能开发中...', 'warning');
+        }
+        
+        // Toast 提示
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        // 初始化
+        refreshData('sqlite');
+    </script>
+</body>
+</html>

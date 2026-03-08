@@ -10,3 +10,20 @@ auto_summary/__pycache__/
 *.bak
 *.tmp
 *.temp
+
+# 数据库文件
+postgres_data/
+qdrant_storage/
+*.db
+*.sqlite
+
+# 构建产物
+server/dist/
+server/*.js
+!server/server.web.js
+
+# 测试文件
+test-*.js
+
+# 锁文件
+server/package-lock.json

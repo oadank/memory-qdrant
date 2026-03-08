@@ -44,10 +44,28 @@ async function startServer() {
       return;
     }
     
-    // Test route
-    if (url.pathname === '/api/memories/test' && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+    // Get memories
+    if (url.pathname === '/api/memories' && req.method === 'GET') {
+      // Auth check
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ') || authHeader.slice(7) !== AUTH_TOKEN) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
+      
+      try {
+        const memories = orchestrator.sqlite.listMemories({ limit: 100 });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ memories }));
+      } catch (error) {
+        console.error('[API] Get memories error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Failed to get memories',
+          details: error instanceof Error ? error.message : String(error)
+        }));
+      }
       return;
     }
     

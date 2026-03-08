@@ -13,10 +13,11 @@ services:
       - ./qdrant_storage:/qdrant/storage
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:6333/healthz || exit 0"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   # PostgreSQL + Apache AGE 知识图谱
   postgres:
@@ -55,11 +56,44 @@ services:
       PGPASSWORD: openclaw123
       PGDATABASE: jarvis_memory
       AGE_GRAPH: agent_memory
+      # Ollama 嵌入配置
+      OPENCLAW_MEMORY_EMBEDDING__ENABLED: "true"
+      OPENCLAW_MEMORY_EMBEDDING__PROVIDER: ollama
+      OPENCLAW_MEMORY_EMBEDDING__MODEL: bge-m3:latest
+      OPENCLAW_MEMORY_EMBEDDING__BASE_URL: http://172.24.16.1:11434
+      OPENCLAW_MEMORY_EMBEDDING__DIMENSIONS: "1024"
+      OPENCLAW_MEMORY_EMBEDDING__API_KEY: ollama
+      # 实体提取配置（需要 LLM）
+      OPENCLAW_MEMORY_EXTRACTION__ENABLED: "false"  # 暂时关闭，需要配置 LLM API
+      OPENCLAW_MEMORY_EXTRACTION__PROVIDER: ollama
+      OPENCLAW_MEMORY_EXTRACTION__MODEL: qwen2.5:7b
+      OPENCLAW_MEMORY_EXTRACTION__BASE_URL: http://172.24.16.1:11434/v1
+      OPENCLAW_MEMORY_EXTRACTION__API_KEY: ollama
     depends_on:
       qdrant:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  # 记忆管理器网页服务（Docker 版本）
+  memory-web:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.web
+    container_name: memory-web
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/frontend:/app/frontend
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://172.24.16.1:11434
+    depends_on:
+      - memory-server
+      - qdrant
+    extra_hosts:
+      - "172.24.16.1:host-gateway"
     restart: unless-stopped
 
 volumes:

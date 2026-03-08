@@ -1,31 +1,26 @@
-# OpenClaw 三层记忆插件 🧠
+# OpenClaw 三层记忆系统 🧠
 
 **完整的 AI 长期记忆解决方案** - SQLite + Qdrant + PostgreSQL/AGE
 
 ---
 
-## 🎯 功能
+## 🎯 功能特性
 
-- ✅ **自动记忆** - 捕获用户对话，自动存储
+- ✅ **三层存储** - SQLite（原文）+ Qdrant（向量）+ PostgreSQL/AGE（图谱）
 - ✅ **语义搜索** - 基于向量相似度搜索记忆
-- ✅ **知识图谱** - 实体关系存储和查询
-- ✅ **网页管理** - 可视化管理记忆数据
+- ✅ **知识图谱** - 实体关系存储和查询（AGE）
+- ✅ **网页管理** - 现代化记忆管理界面（暗黑模式 + 服务监控）
 - ✅ **OpenClaw 集成** - 无缝接入 OpenClaw 机器人
+- ✅ **对话气泡** - 区分用户/助手消息的可视化显示
 
 ---
 
-## 🏗️ 架构
+## 🏗️ 系统架构
 
 ```
 ┌──────────────────┐
-│  OpenClaw        │
-│  (聊天机器人)     │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  插件层           │
-│  (index.js)      │
+│  网页管理界面     │
+│  (3001 端口)      │
 └────────┬─────────┘
          │ HTTP API
          ▼
@@ -38,7 +33,7 @@
     ▼    ▼    ▼
 ┌──────┐ ┌──────┐ ┌─────────┐
 │SQLite│ │Qdrant│ │Postgres │
-│本地  │ │向量  │ │+ AGE    │
+│原文  │ │向量  │ │+ AGE    │
 └──────┘ └──────┘ └─────────┘
 ```
 
@@ -66,7 +61,22 @@ docker compose ps
 # 应该显示 3 个容器都在运行
 ```
 
-### 3. 测试服务
+### 3. 访问网页管理界面
+
+打开浏览器访问：
+
+```
+http://localhost:3001
+```
+
+**功能：**
+- 📊 实时查看各层记忆数量
+- 🔍 关键词搜索 / 语义搜索
+- ➕ 新增/编辑/删除记忆
+- 🌓 暗黑模式切换
+- 🔄 服务状态监控
+
+### 4. 测试 API
 
 ```bash
 # 健康检查
@@ -85,62 +95,30 @@ curl -X POST http://localhost:7777/api/search \
   -d '{"agent_id":"default","query":"红烧肉","limit":5}'
 ```
 
-### 4. 安装 OpenClaw 插件
-
-```bash
-# 复制插件到 OpenClaw 插件目录
-cp -r plugin ~/.openclaw/plugins/openclaw_qdrant_age_server
-
-# 或者创建软链接
-ln -s $(pwd)/plugin ~/.openclaw/plugins/openclaw_qdrant_age_server
-```
-
-### 5. 配置 OpenClaw
-
-编辑 `~/.openclaw/openclaw.json`：
-
-```json
-{
-  "plugins": {
-    "load": {
-      "paths": [
-        "~/.openclaw/plugins/openclaw_qdrant_age_server"
-      ]
-    },
-    "entries": {
-      "openclaw_qdrant_age_server": {
-        "enabled": true,
-        "config": {
-          "memoryServerUrl": "http://localhost:7777",
-          "authToken": "clawx-memory-token"
-        }
-      }
-    }
-  }
-}
-```
-
-### 6. 重启 OpenClaw
-
-```bash
-openclaw gateway restart
-```
-
 ---
 
 ## 🌐 网页管理界面
 
-打开浏览器访问：
+### 访问地址
 
 ```
-file:///path/to/memory-qdrant/frontend/memory-manager.html
+http://localhost:3001
 ```
 
-功能：
-- 查看所有记忆
-- 搜索记忆
-- 删除记忆
-- 手动添加记忆
+### 界面功能
+
+#### 顶部状态栏
+- **服务监控** - SQLite/Qdrant/AGE 实时状态（绿色=正常，红色=异常）
+- **记忆统计** - 各层记忆数量一目了然
+- **快速切换** - Tab 切换不同存储层
+- **主题切换** - 🌓 一键切换亮色/暗黑模式
+- **服务重启** - 🔄 快速重启服务
+
+#### 记忆管理
+- **对话气泡** - 用户消息（蓝色）和助手回复（白色）区分显示
+- **操作按钮** - 查看/编辑/删除（hover 时显示在右上角）
+- **搜索功能** - SQLite 关键词搜索 / Qdrant 语义搜索
+- **分页浏览** - 固定底部分页栏
 
 ---
 
@@ -152,8 +130,8 @@ file:///path/to/memory-qdrant/frontend/memory-manager.html
 |--------|--------|------|
 | `OPENCLAW_MEMORY_TIER` | `full` | 服务层级：lite/standard/full |
 | `MEMORY_AUTH_TOKEN` | `clawx-memory-token` | API 认证令牌 |
-| `QDRANT_URL` | `http://localhost:6333` | Qdrant 地址 |
-| `PGHOST` | `localhost` | PostgreSQL 主机 |
+| `QDRANT_URL` | `http://qdrant:6333` | Qdrant 地址（容器内） |
+| `PGHOST` | `postgres` | PostgreSQL 主机（容器内） |
 | `PGPORT` | `5432` | PostgreSQL 端口 |
 | `PGUSER` | `openclaw` | 数据库用户 |
 | `PGPASSWORD` | `openclaw123` | 数据库密码 |
@@ -163,10 +141,11 @@ file:///path/to/memory-qdrant/frontend/memory-manager.html
 
 | 服务 | 端口 | 用途 |
 |------|------|------|
+| Memory Web | 3001 | 网页管理界面 |
 | Memory Server | 7777 | HTTP API |
-| Qdrant | 6333 | HTTP API |
-| Qdrant gRPC | 6334 | gRPC API |
-| PostgreSQL | 5432 | 数据库连接 |
+| Qdrant | 6333 | 向量数据库 HTTP |
+| Qdrant gRPC | 6334 | 向量数据库 gRPC |
+| PostgreSQL | 5432 | 关系数据库 |
 
 ---
 
@@ -202,6 +181,20 @@ Content-Type: application/json
 }
 ```
 
+### 获取所有记忆
+
+```bash
+GET /api/memories?limit=20&offset=0
+Authorization: Bearer clawx-memory-token
+```
+
+### 删除记忆
+
+```bash
+DELETE /api/memories/:id
+Authorization: Bearer clawx-memory-token
+```
+
 ### 健康检查
 
 ```bash
@@ -210,70 +203,106 @@ GET /api/health
 
 ---
 
-## 🛠️ 开发
+## 🛠️ 开发指南
 
-### 构建 Memory Server
-
-```bash
-cd server
-npm install
-npm run build
-```
-
-### 运行 Memory Server（本地开发）
-
-```bash
-cd server
-npm run dev
-```
-
-### 查看日志
-
-```bash
-docker compose logs -f memory-server
-docker compose logs -f qdrant
-docker compose logs -f postgres
-```
-
----
-
-## 📦 项目结构
+### 项目结构
 
 ```
 memory-qdrant/
-├── plugin/                    # OpenClaw 插件
-│   ├── index.js
-│   ├── frontend/
-│   │   └── memory-manager.html
-│   ├── package.json
-│   └── openclaw.plugin.json
-│
-├── server/                    # 三层服务
+├── server/                    # 后端服务
 │   ├── src/
-│   │   └── server-native.ts
+│   │   ├── server-native.ts   # 主服务器（TypeScript）
+│   │   ├── server.web.js      # 网页服务器
+│   │   ├── storage/           # 存储层
+│   │   ├── extraction/        # 实体提取
+│   │   └── search/            # 搜索模块
+│   ├── frontend/
+│   │   └── memory-manager.html # 网页管理界面
 │   ├── docker/
-│   │   └── Dockerfile
-│   ├── package.json
-│   └── tsup.config.ts
+│   │   └── Dockerfile         # 服务器镜像
+│   ├── Dockerfile.web         # 网页服务器镜像
+│   └── package.json
 │
 ├── docker-compose.yml         # Docker 编排
 ├── README.md
 └── .gitignore
 ```
 
+### 本地开发
+
+#### 运行 Memory Server
+
+```bash
+cd server
+npm install
+npm run build
+npm run dev
+```
+
+#### 运行网页服务器
+
+```bash
+cd server
+node server.web.js
+```
+
+访问 `http://localhost:3001`
+
+### Docker 开发
+
+```bash
+# 重建镜像
+docker compose build
+
+# 重启服务
+docker compose restart
+
+# 查看日志
+docker compose logs -f memory-server
+docker compose logs -f memory-web
+```
+
 ---
 
 ## 🎯 服务层级
 
-| 层级 | 存储 | 用途 |
-|------|------|------|
-| **lite** | SQLite | 基础记忆存储 |
-| **standard** | SQLite + Qdrant | + 语义搜索 |
-| **full** | SQLite + Qdrant + AGE | + 知识图谱 |
+| 层级 | 存储 | 用途 | 推荐场景 |
+|------|------|------|----------|
+| **lite** | SQLite | 基础记忆存储 | 简单对话记录 |
+| **standard** | SQLite + Qdrant | + 语义搜索 | 智能问答系统 |
+| **full** | SQLite + Qdrant + AGE | + 知识图谱 | 复杂知识管理 |
 
 ---
 
-## 📝 常见问题
+## 📝 更新日志
+
+### v2.0.0 (2026-03-08)
+
+**🎨 网页界面重大更新：**
+
+- ✅ 全新 UI 设计 - 参考 OpenClaw Dashboard 风格
+- ✅ 暗黑模式 - 一键切换主题
+- ✅ 服务监控 - 实时显示各层服务状态
+- ✅ 对话气泡 - 用户/助手消息区分显示
+- ✅ 固定布局 - 工具栏和分页固定，内容区滚动
+- ✅ 统计合并 - 记忆数量和 Tab 切换整合到一行
+
+**🔧 技术改进：**
+
+- ✅ 简化网页服务器 - 去掉 Qdrant 直接依赖
+- ✅ 实时文件读取 - 修改 HTML 后刷新浏览器即可生效
+- ✅ 角色识别 - 根据 tags 自动判断用户/助手消息
+- ✅ 响应式设计 - 适配不同屏幕尺寸
+
+### v1.0.0
+
+- 初始版本
+- 三层存储架构
+- 基础网页管理界面
+
+---
+
+## 📄 常见问题
 
 ### Q: 服务启动失败？
 
@@ -293,9 +322,26 @@ curl http://localhost:7777/api/health \
   -H "Authorization: Bearer clawx-memory-token"
 ```
 
+### Q: 网页界面不显示？
+
+A: 确保 memory-web 服务运行：
+
+```bash
+docker compose ps memory-web
+docker compose logs memory-web
+```
+
 ### Q: 搜索返回空结果？
 
 A: 需要配置 Ollama 或其他嵌入模型来生成向量。当前版本支持基础搜索。
+
+---
+
+## 🔗 相关链接
+
+- [OpenClaw 官方文档](https://docs.openclaw.ai)
+- [Qdrant 文档](https://qdrant.tech/documentation/)
+- [Apache AGE](https://age.apache.org/)
 
 ---
 
@@ -314,3 +360,4 @@ MIT License
 - 使用原生 Node.js HTTP 服务器
 - 简化部署流程
 - 整合插件和服务到统一仓库
+- 现代化网页管理界面
