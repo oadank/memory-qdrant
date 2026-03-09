@@ -248,7 +248,7 @@ async function captureMessage(event, ctx) {
           content: cleanText,
           tags: ['conversation', msg.role === 'assistant' ? 'assistant_reply' : 'user_message'],
           source: 'explicit',
-          extract_entities: false, // 禁用实体提取（节省 GPU 显存）
+          extract_entities: true, // 启用实体提取（AGE 知识图谱）
           info: {
             role: role,
             timestamp: timestamp,
@@ -478,3 +478,4 @@ export default {
     console.log('[memory-qdrant] 插件已清理');
   }
 };
+
